@@ -60,6 +60,7 @@ class GUI:
         thread = threading.Thread(target=self.receive_message_from_server, args=(self.client_socket,)) # Create a thread for the send and receive in same time 
         thread.daemon = True
         thread.start()
+
     #function to recieve msg
     def receive_message_from_server(self, so):
         while True:
