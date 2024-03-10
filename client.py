@@ -211,7 +211,6 @@ class GUI:
         self.client_socket.send(message)
 
 
-
     def send_chat(self):
 #        senders_name = self.name_widget.get().strip() + ": "
         data = self.enter_text_widget.get().strip()
