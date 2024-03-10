@@ -42,6 +42,7 @@ class GUI:
         self.display_chat_entry_box()
         self.display_chat_box()
 
+
     def sensors_thread_start(self):
         timerThread = threading.Thread(target=self.sensors_thread)
         timerThread.daemon = True
