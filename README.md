@@ -11,6 +11,9 @@ Pressure sensor modbus
 https://www.stssensors.com/wp-content/uploads/2020/11/PTM-Modbus-communication-example.pdf
 
 Modbus adress table:
-0xF0 Pressure sensor
-0xAA Relay board 1
-0xBB Relay board 2
+
+| adr  | dev             |
+|------|-----------------|
+| 0xF0 | Pressure sensor |
+| 0xAA | Relay board 1   |
+| 0xBB | Relay board 2   |
