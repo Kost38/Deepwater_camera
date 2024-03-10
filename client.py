@@ -5,6 +5,7 @@ import socket #Sockets for network connection
 import threading # for multiple proccess 
 import binascii
 import datetime, time
+import re
 
 
 class GUI:
@@ -49,9 +50,11 @@ class GUI:
     def sensors_thread(self):
         next_call = time.time()
         while True:
-            print(datetime.datetime.now())
-            self.send_message(bytearray.fromhex('FF 01 00 00 00 08'))
-            next_call = next_call+1;
+#            print(datetime.datetime.now())
+#            self.send_message(bytearray.fromhex('AA 01 00 00 00 08'))
+#            self.send_message(bytearray.fromhex('BB 01 00 00 00 08'))
+            self.send_message(bytearray.fromhex('F0 04 00 00 00 01'))
+            next_call = next_call+1
             time.sleep(next_call - time.time())
 
 
@@ -67,7 +70,7 @@ class GUI:
             if not buffer:
                 break
             #message = buffer.decode('utf-8')
-            self.chat_transcript_area.insert('end', 'rcvd ' + buffer.hex(' ') + '\n')
+            self.chat_transcript_area.insert('end', 'rcvd ' + ' '.join(re.findall('..?', buffer.hex())) + '\n')
             self.chat_transcript_area.yview(END)
 
         so.close()
@@ -85,8 +88,8 @@ class GUI:
         self.join_button = Button(frame, text="Connect", width=10, command=self.on_join)
         self.join_button.pack(side='right',padx=5, pady=15)
         frame.pack(side='top', anchor='nw')
-        self.ip_widget_text.set("127.0.0.1")
-        self.port_widget_text.set("10319")
+        self.ip_widget_text.set("192.168.1.67")
+        self.port_widget_text.set("4001")
 
 
     def display_control_buttons(self):
@@ -105,41 +108,41 @@ class GUI:
         if self.command1_button.config('relief')[-1] == 'sunken':
             self.command1_button.config(relief="raised")
             self.command1_button.config(text="R1 OFF")
-            self.send_message(bytearray.fromhex('FF 05 00 00 00 00'))
+            self.send_message(bytearray.fromhex('AA 05 00 00 00 00'))
         else:
             self.command1_button.config(relief="sunken")
             self.command1_button.config(text="R1 ON")
-            self.send_message(bytearray.fromhex('FF 05 00 00 FF 00'))
+            self.send_message(bytearray.fromhex('AA 05 00 00 FF 00'))
 
     def on_command2(self):
         if self.command2_button.config('relief')[-1] == 'sunken':
             self.command2_button.config(relief="raised")
             self.command2_button.config(text="R2 OFF")
-            self.send_message(bytearray.fromhex('FF 05 00 01 00 00'))
+            self.send_message(bytearray.fromhex('AA 05 00 01 00 00'))
         else:
             self.command2_button.config(relief="sunken")
             self.command2_button.config(text="R2 ON")
-            self.send_message(bytearray.fromhex('FF 05 00 01 FF 00'))
+            self.send_message(bytearray.fromhex('AA 05 00 01 FF 00'))
 
     def on_command3(self):
         if self.command3_button.config('relief')[-1] == 'sunken':
             self.command3_button.config(relief="raised")
             self.command3_button.config(text="R3 OFF")
-            self.send_message(bytearray.fromhex('AA 05 00 00 00 00'))
+            self.send_message(bytearray.fromhex('BB 05 00 00 00 00'))
         else:
             self.command3_button.config(relief="sunken")
             self.command3_button.config(text="R3 ON")
-            self.send_message(bytearray.fromhex('AA 05 00 00 FF 00'))
+            self.send_message(bytearray.fromhex('BB 05 00 00 FF 00'))
 
     def on_command4(self):
         if self.command4_button.config('relief')[-1] == 'sunken':
             self.command4_button.config(relief="raised")
             self.command4_button.config(text="R4 OFF")
-            self.send_message(bytearray.fromhex('AA 05 00 01 00 00'))
+            self.send_message(bytearray.fromhex('BB 05 00 01 00 00'))
         else:
             self.command4_button.config(relief="sunken")
             self.command4_button.config(text="R4 ON")
-            self.send_message(bytearray.fromhex('AA 05 00 01 FF 00'))
+            self.send_message(bytearray.fromhex('BB 05 00 01 FF 00'))
 
 
     def display_chat_box(self):
@@ -166,12 +169,13 @@ class GUI:
             messagebox.showerror("Error", "Ip or port error")
             return
         if self.initialize_socket() > 0: return
+        self.connected = True
         self.listen_for_incoming_messages_in_a_thread()
         self.sensors_thread_start()
         self.ip_widget.config(state='disabled')
         self.port_widget.config(state='disabled')
         self.join_button.config(state='disabled')
-        self.connected = True
+
 #        self.client_socket.send(("joined:" + self.name_widget.get()).encode('utf-8'))
 
     def on_enter_key_pressed(self, event):
@@ -202,7 +206,7 @@ class GUI:
         message.append(ba[0])
         message.append(ba[1])
 #        self.chat_transcript_area.insert('end', message.decode('utf-8') + '\n')
-        self.chat_transcript_area.insert('end', 'send ' + message.hex(' ') + '\n')
+        self.chat_transcript_area.insert('end', 'send ' + ' '.join(re.findall('..?', message.hex()))+ '\n')
         self.chat_transcript_area.yview(END)
         self.client_socket.send(message)
 
@@ -228,4 +232,3 @@ if __name__ == '__main__':
     gui = GUI(root)
     root.protocol("WM_DELETE_WINDOW", gui.on_close_window)
     root.mainloop()
-
