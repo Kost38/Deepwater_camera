@@ -4,4 +4,13 @@ gst-launch-1.0 udpsrc port=5600 caps='application/x-rtp, media=(string)video, cl
 
 gst-launch-1.0 rtspsrc protocols=tcp location=rtsp://root:12345@10.1.10.80/stream=0 ! application/x-rtp, media=video ! rtpjitterbuffer ! rtph265depay ! avdec_h265 ! glimagesink sync=false
 
+Relay board modbus
 http://www.chinalctech.com/m/view.php?aid=455
+
+Pressure sensor modbus
+https://www.stssensors.com/wp-content/uploads/2020/11/PTM-Modbus-communication-example.pdf
+
+Modbus adress table:
+0xF0 Pressure sensor
+0xAA Relay board 1
+0xBB Relay board 2
