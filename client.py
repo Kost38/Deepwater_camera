@@ -58,7 +58,6 @@ class GUI:
             time.sleep(next_call - time.time())
 
 
-    
     def listen_for_incoming_messages_in_a_thread(self):
         thread = threading.Thread(target=self.receive_message_from_server, args=(self.client_socket,)) # Create a thread for the send and receive in same time 
         thread.daemon = True
