@@ -17,3 +17,7 @@ Modbus adress table:
 | 0xF0 | Pressure sensor |
 | 0xAA | Relay board 1   |
 | 0xBB | Relay board 2   |
+
+![1.7mm](/cam/1.7mm.png)
+![2.5mm](/cam/2.5mm.png)
+![5mm](/cam/5mm.png)
