@@ -18,6 +18,9 @@ Modbus adress table:
 | 0xAA | Relay board 1   |
 | 0xBB | Relay board 2   |
 
+For having Modbus library in Python run:
+pip install pymodbus
+
 ![1.7mm](/cam/1.7mm.png)
 ![2.5mm](/cam/2.5mm.png)
 ![5mm](/cam/5mm.png)
