@@ -24,13 +24,13 @@ class Player():
 
 
         display_frame = Frame(window, bg='#000000')
-        display_frame.pack(side=TOP,expand=YES,fill=BOTH)
+        display_frame.pack(side=LEFT,expand=YES,fill=BOTH)
         frame_id = display_frame.winfo_id()
 
         frame = Frame(window)
         self.command1_button = Button(frame, text="start", width=10, command = self.on_command1)
         self.command1_button.pack(side='left',padx=5, pady=15)
-        frame.pack(side='bottom', anchor='nw')
+        frame.pack(side='right', anchor='nw')
 
 
 
@@ -49,7 +49,10 @@ class Player():
         #self.pipeline = Gst.parse_launch("rtspsrc protocols=tcp location=rtsp://root:12345@192.168.0.123/stream0 ! application/x-rtp, media=video ! rtpjitterbuffer ! rtph264depay ! h264parse ! mp4mux ! filesink location=" + filename)
         #pipeline = Gst.parse_launch("videotestsrc num-buffers=1000 ! autovideosink")
 
-        self.pipeline = Gst.parse_launch('rtspsrc protocols=tcp location=rtsp://root:12345@192.168.0.123/stream0 ! application/x-rtp, media=video ! rtpjitterbuffer ! rtph264depay ! tee name=tee ! avdec_h264 ! autovideosink')
+#        self.pipeline = Gst.parse_launch('rtspsrc protocols=tcp location=rtsp://root:12345@192.168.0.123/stream0 ! application/x-rtp, media=video ! rtpjitterbuffer ! rtph264depay ! tee name=tee ! avdec_h264 ! videocrop left=240 right=240 ! autovideosink')
+#        self.pipeline = Gst.parse_launch('rtspsrc protocols=tcp location=rtsp://root:12345@10.1.10.80/stream=0 ! application/x-rtp, media=video ! rtpjitterbuffer ! rtph265depay ! tee name=tee ! avdec_h265 ! videocrop left=240 right=240 ! autovideosink')
+        self.pipeline = Gst.parse_launch("udpsrc port=5600 ! application/x-rtp, media=video ! rtpjitterbuffer ! rtph265depay ! tee name=tee ! avdec_h265 ! videocrop left=240 right=240 ! autovideosink")
+
         bus = self.pipeline.get_bus()
         bus.add_signal_watch()
         bus.connect('message::eos', self.on_eos)
@@ -95,7 +98,7 @@ class Player():
         print("start")
         filename = datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ".mp4"
         print(filename)
-        self.recordpipe = Gst.parse_bin_from_description("queue name=filequeue ! h264parse ! mp4mux ! filesink location=" + filename, True)
+        self.recordpipe = Gst.parse_bin_from_description("queue name=filequeue ! h265parse ! matroskamux ! filesink location=" + filename, True)
         self.pipeline.add(self.recordpipe)
         #self.recordpipe = Gst.parse_launch("queue name=filequeue ! h264parse ! mp4mux ! filesink location=" + filename)
         self.pipeline.get_by_name("tee").link(self.recordpipe)
