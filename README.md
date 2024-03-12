@@ -10,6 +10,9 @@ http://www.chinalctech.com/m/view.php?aid=455
 Pressure sensor modbus
 https://www.stssensors.com/wp-content/uploads/2020/11/PTM-Modbus-communication-example.pdf
 
+For having Modbus library in Python run:
+pip install pymodbus
+
 Modbus adress table:
 
 | adr  | dev             |
@@ -18,8 +21,6 @@ Modbus adress table:
 | 0xAA | Relay board 1   |
 | 0xBB | Relay board 2   |
 
-For having Modbus library in Python run:
-pip install pymodbus
 
 ![1.7mm](/cam/1.7mm.png)
 ![2.5mm](/cam/2.5mm.png)
