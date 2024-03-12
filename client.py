@@ -1,6 +1,8 @@
 #!/usr/bin/python3
 
-from tkinter import Tk, Frame, Scrollbar, Label, END, Entry, Text, VERTICAL, Button, messagebox, StringVar #Tkinter Python Module for GUI  
+#Tkinter Python Module for GUI
+from tkinter import Tk, Frame, Scrollbar, Label, END, Entry, Text, VERTICAL, Button, messagebox, StringVar  
+
 import socket #Sockets for network connection
 import threading # for multiple proccess 
 import binascii
@@ -13,42 +15,112 @@ class GUI:
     last_received_message = None
     connected = False
 
+    # Constructor
     def __init__(self, master):
         self.root = master
-        self.chat_transcript_area = None
-        self.ip_widget = None
-        self.port_widget = None
-        self.enter_text_widget = None
-        self.join_button = None
+        self.ip_entry = None
+        self.port_entry = None
+        self.connect_button = None
+        self.pressure_sensor_label = None
+        self.pressure_sensor_val_label = None
+        self.pressure_sensor_val = None
+        self.modbus_command_entry = None
+        self.modbus_log_text = None        
         self.initialize_gui()
 
+    # GUI initializer
+    def initialize_gui(self):
+        self.root.title("Deepwater camera") 
+        self.root.resizable(0, 0)
+        self.display_connect_section()
+        self.display_pressure_sensor()
+        self.display_control_buttons()
+        self.display_modbus_command_entry_box()
+        self.display_modbus_log_text_box()    
+        
+    # Put IP adress Entry, Port Entry boxes and Connect Button on the form
+    def display_connect_section(self):
+        frame = Frame()
+        
+        # Create IP adress Entry
+        Label(frame, text='IP ', font=("arial", 13,"bold")).pack(side='left', pady=20)
+        self.ip_entry_text = StringVar()
+        self.ip_entry = Entry(frame, textvariable=self.ip_entry_text, width=15,font=("arial", 13))
+        self.ip_entry.pack(side='left', anchor='e',  pady=15)
+        
+        # Create Port Entry
+        Label(frame, text=' port ', font=("arial", 13,"bold")).pack(side='left', pady=20)
+        self.port_entry_text = StringVar()
+        self.port_entry = Entry(frame, textvariable=self.port_entry_text, width=5,font=("arial", 13))
+        self.port_entry.pack(side='left', anchor='e',  pady=15)
 
+        # Create Connect Button
+        self.connect_button = Button(frame, text="Connect", width=10, command=self.on_connect)
+        self.connect_button.pack(side='right',padx=5, pady=15)
+        
+        frame.grid(column=0, row=0) # pack(side='top', anchor='nw')        
+        # self.ip_entry_text.set("192.168.1.67")
+        # self.port_entry_text.set("4001")
+        self.ip_entry_text.set("127.0.0.1")
+        self.port_entry_text.set(10319)
+
+  
+    # Handle "Connect" button click
+    def on_connect(self):
+        if len(self.ip_entry.get()) == 0 or len(self.port_entry.get()) == 0:
+            messagebox.showerror("Error", "Ip or port error")
+            return
+        if self.initialize_socket() > 0: return
+        self.connected = True
+        self.listen_for_incoming_messages_in_a_thread()
+        self.send_messages_to_sensors_in_a_thread()
+        # Disable connect section
+        self.ip_entry.config(state='disabled')
+        self.port_entry.config(state='disabled')
+        self.connect_button.config(state='disabled')
+        # self.client_socket.send(("joined:" + self.name_widget.get()).encode('utf-8'))
+
+    # Initialize socket and connect to the remote server
     def initialize_socket(self):
-        self.client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM) # initialazing socket with TCP and IPv4
-        remote_ip = self.ip_widget_text.get() # IP address 
-        remote_port = int(self.port_widget_text.get()) #TCP port
+        # Initialazing socket with TCP and IPv4
+        self.client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        # IP address 
+        remote_ip = self.ip_entry_text.get()
+        # TCP port
+        remote_port = int(self.port_entry_text.get()) 
         try:
-            self.client_socket.connect((remote_ip, remote_port)) #connect to the remote server
+            # Connect to the remote server
+            self.client_socket.connect((remote_ip, remote_port)) 
         except socket.error as e:
             messagebox.showerror("Error", "Connection error: %s" % e) 
             return 1
         return 0
 
-    def initialize_gui(self): # GUI initializer
-        self.root.title("Deepwater camera") 
-        self.root.resizable(0, 0)
-        self.display_name_section()
-        self.display_control_buttons()
-        self.display_chat_entry_box()
-        self.display_chat_box()
+    def listen_for_incoming_messages_in_a_thread(self):
+        # Create a thread for the send and receive in same time 
+        thread = threading.Thread(target=self.receive_message_from_server, args=(self.client_socket,))
+        thread.daemon = True
+        thread.start()
 
+    # Function to recieve msg
+    def receive_message_from_server(self, socket):        
+        while True:
+            buffer = socket.recv(256)
+            if not buffer:
+                break
+            # message = buffer.decode('utf-8')            
+            self.pressure_sensor_val.set(buffer[4:6].hex())
+            self.modbus_log_text.insert('end', 'rcvd ' + ' '.join(re.findall('..?', buffer.hex())) + '\n')
+            self.modbus_log_text.yview(END)
 
-    def sensors_thread_start(self):
-        timerThread = threading.Thread(target=self.sensors_thread)
+        socket.close()
+    
+    def send_messages_to_sensors_in_a_thread(self):
+        timerThread = threading.Thread(target=self.send_messages_to_sensors)
         timerThread.daemon = True
         timerThread.start()
         
-    def sensors_thread(self):
+    def send_messages_to_sensors(self):
         next_call = time.time()
         while True:
 #            print(datetime.datetime.now())
@@ -58,52 +130,36 @@ class GUI:
             next_call = next_call+1
             time.sleep(next_call - time.time())
 
-
-    def listen_for_incoming_messages_in_a_thread(self):
-        thread = threading.Thread(target=self.receive_message_from_server, args=(self.client_socket,)) # Create a thread for the send and receive in same time 
-        thread.daemon = True
-        thread.start()
-
-    #function to recieve msg
-    def receive_message_from_server(self, so):
-        while True:
-            buffer = so.recv(256)
-            if not buffer:
-                break
-            #message = buffer.decode('utf-8')
-            self.chat_transcript_area.insert('end', 'rcvd ' + ' '.join(re.findall('..?', buffer.hex())) + '\n')
-            self.chat_transcript_area.yview(END)
-
-        so.close()
-
-    def display_name_section(self):
-        frame = Frame()
-        Label(frame, text='IP ', font=("arial", 13,"bold")).pack(side='left', pady=20)
-        self.ip_widget_text = StringVar()
-        self.ip_widget = Entry(frame, textvariable=self.ip_widget_text, width=15,font=("arial", 13))
-        self.ip_widget.pack(side='left', anchor='e',  pady=15)
-        Label(frame, text=' port ', font=("arial", 13,"bold")).pack(side='left', pady=20)
-        self.port_widget_text = StringVar()
-        self.port_widget = Entry(frame, textvariable=self.port_widget_text, width=5,font=("arial", 13))
-        self.port_widget.pack(side='left', anchor='e',  pady=15)
-        self.join_button = Button(frame, text="Connect", width=10, command=self.on_join)
-        self.join_button.pack(side='right',padx=5, pady=15)
-        frame.pack(side='top', anchor='nw')
-        self.ip_widget_text.set("192.168.1.67")
-        self.port_widget_text.set("4001")
-
-
+    # Put pressure sensor label on the form
+    def display_pressure_sensor(self):
+        frame = Frame()        
+        # Create pressure sensor caption label
+        self.pressure_sensor_label = Label(frame, text='Pressure sensor', font=("arial", 13,"bold"))
+        self.pressure_sensor_label.pack(side='top', pady=20)
+        # Create pressure sensor value label
+        self.pressure_sensor_val_label = Label(frame, text='', font=("arial", 13,"bold"))        
+        self.pressure_sensor_val_label.pack(side='right', pady=20)
+        self.pressure_sensor_val = StringVar()
+        self.pressure_sensor_val_label['textvariable'] = self.pressure_sensor_val    
+        self.pressure_sensor_val.set('0000')
+        frame.grid(column=1, row=0) # pack(side='top', anchor='ne')
+    
+    # Put control buttons on the form
     def display_control_buttons(self):
         frame = Frame()
+        # Create R1 OFF Button
         self.command1_button = Button(frame, text="R1 OFF", width=10, command=self.on_command1)
         self.command1_button.pack(side='left',padx=5, pady=15)
+        # Create R2 OFF Button
         self.command2_button = Button(frame, text="R2 OFF", width=10, command=self.on_command2)
         self.command2_button.pack(side='left',padx=5, pady=15)
+        # Create R3 OFF Button
         self.command3_button = Button(frame, text="R3 OFF", width=10, command=self.on_command3)
         self.command3_button.pack(side='left',padx=5, pady=15)
+        # Create R4 OFF Button
         self.command4_button = Button(frame, text="R4 OFF", width=10, command=self.on_command4)
         self.command4_button.pack(side='left',padx=5, pady=15)
-        frame.pack(side='top', anchor='nw')
+        frame.grid(column=0, row=1) #.pack(side='left', anchor='nw')
 
     def on_command1(self):
         if self.command1_button.config('relief')[-1] == 'sunken':
@@ -146,43 +202,46 @@ class GUI:
             self.send_message(bytearray.fromhex('BB 05 00 01 FF 00'))
 
 
-    def display_chat_box(self):
+    # Put "Modbus log" transcript area Text box on the form
+    def display_modbus_log_text_box(self):
         frame = Frame()
+        # Create "Modbus log" Text box
         Label(frame, text='Modbus log', font=("arial", 12,"bold")).pack(side='top', padx=270)
-        self.chat_transcript_area = Text(frame, width=60, height=10, font=("arial", 12))
-        scrollbar = Scrollbar(frame, command=self.chat_transcript_area.yview, orient=VERTICAL)
-        self.chat_transcript_area.config(yscrollcommand=scrollbar.set)
-        self.chat_transcript_area.bind('<KeyPress>', lambda e: 'break')
-        self.chat_transcript_area.pack(side='left', padx=15, pady=10)
+        self.modbus_log_text = Text(frame, width=60, height=10, font=("arial", 12))
+        # Create a scrollbar for the Text box
+        scrollbar = Scrollbar(frame, command=self.modbus_log_text.yview, orient=VERTICAL)
+        # Attach a Scrollbar to the Text transcript area
+        self.modbus_log_text.config(yscrollcommand=scrollbar.set)
+        self.modbus_log_text.bind('<KeyPress>', lambda e: 'break')
+        self.modbus_log_text.pack(side='left', padx=15, pady=10)
         scrollbar.pack(side='right', fill='y',padx=1)
-        frame.pack(side='left')
+        frame.grid(column=1, row=2) #.pack(side='left')
 
-    def display_chat_entry_box(self):   
-        frame = Frame()
+    # Put "Modbus command" Entry box on the form
+    def display_modbus_command_entry_box(self):   
+        frame = Frame()        
+        # Create "Modbus command" Entry
         Label(frame, text='Modbus command, crc auto', font=("arial", 12,"bold")).pack(side='top', anchor='w', padx=120)
-        self.enter_text_widget = Entry(frame, width=50, font=("arial", 12))
-        self.enter_text_widget.pack(side='left', pady=10, padx=10)
-        self.enter_text_widget.bind('<Return>', self.on_enter_key_pressed)
-        frame.pack(side='left')
+        self.modbus_command_entry = Entry(frame, width=50, font=("arial", 12))
+        self.modbus_command_entry.pack(side='left', pady=10, padx=10)
+        # Bind Enter key to a handler function
+        self.modbus_command_entry.bind('<Return>', self.on_modbus_command_enter_pressed)        
+        frame.grid(column=0, row=2) #.pack(side='left')
 
-    def on_join(self):
-        if len(self.ip_widget.get()) == 0 or len(self.port_widget.get()) == 0:
-            messagebox.showerror("Error", "Ip or port error")
-            return
-        if self.initialize_socket() > 0: return
-        self.connected = True
-        self.listen_for_incoming_messages_in_a_thread()
-        self.sensors_thread_start()
-        self.ip_widget.config(state='disabled')
-        self.port_widget.config(state='disabled')
-        self.join_button.config(state='disabled')
+    # Handle Enter key press
+    def on_modbus_command_enter_pressed(self, event):
+        self.send_modbus_command()
 
-#        self.client_socket.send(("joined:" + self.name_widget.get()).encode('utf-8'))
+    # Send Modbus command to the remote server
+    def send_modbus_command(self):
+#        senders_name = self.name_widget.get().strip() + ": "
+        data = self.modbus_command_entry.get().strip()
+        message = bytearray.fromhex(data)
+        self.send_message(message)
+#        self.modbus_command_entry.delete(1.0, 'end')
+        return 'break'
 
-    def on_enter_key_pressed(self, event):
-        self.send_chat()
-
-
+    # Calculate CRC
     def modbusCrc(self, msg):
         crc = 0xFFFF
         for n in range(len(msg)):
@@ -195,7 +254,7 @@ class GUI:
                     crc >>= 1
         return crc
 
-
+    # Send message to the remote server
     def send_message(self, message):
         if not(self.connected):
             messagebox.showerror("Error", "Not connected")
@@ -206,27 +265,19 @@ class GUI:
 #        print("%02X %02X"%(ba[0], ba[1]))
         message.append(ba[0])
         message.append(ba[1])
-#        self.chat_transcript_area.insert('end', message.decode('utf-8') + '\n')
-        self.chat_transcript_area.insert('end', 'send ' + ' '.join(re.findall('..?', message.hex()))+ '\n')
-        self.chat_transcript_area.yview(END)
+#        self.modbus_log_text.insert('end', message.decode('utf-8') + '\n')
+        self.modbus_log_text.insert('end', 'send ' + ' '.join(re.findall('..?', message.hex()))+ '\n')
+        self.modbus_log_text.yview(END)
         self.client_socket.send(message)
 
-
-    def send_chat(self):
-#        senders_name = self.name_widget.get().strip() + ": "
-        data = self.enter_text_widget.get().strip()
-        message = bytearray.fromhex(data)
-        self.send_message(message)
-#        self.enter_text_widget.delete(1.0, 'end')
-        return 'break'
-
+    # Handle closing the window
     def on_close_window(self):
         if messagebox.askokcancel("Quit", "Do you want to quit?"):
             root.destroy()
             if self.connected: self.client_socket.close()
             exit(0)
 
-#the mail function 
+# The main function 
 if __name__ == '__main__':
     root = Tk()
     gui = GUI(root)
