@@ -1,4 +1,3 @@
-
 #!/usr/bin/python3
 
 #Tkinter Python Module for GUI
