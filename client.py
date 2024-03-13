@@ -59,10 +59,10 @@ class GUI:
         self.connect_button.pack(side='right',padx=5, pady=15)
         
         frame.grid(column=0, row=0) # pack(side='top', anchor='nw')        
-        # self.ip_entry_text.set("192.168.1.67")
-        # self.port_entry_text.set("4001")
-        self.ip_entry_text.set("127.0.0.1")
-        self.port_entry_text.set(10319)
+        self.ip_entry_text.set("192.168.1.67")
+        self.port_entry_text.set("4001")
+        # self.ip_entry_text.set("127.0.0.1")
+        # self.port_entry_text.set(10319)
 
   
     # Handle "Connect" button click
