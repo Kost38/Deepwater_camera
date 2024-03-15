@@ -1,5 +1,6 @@
 import struct
 
+# floatNum = -3.141592e+00
 floatNum = 1.0e+00
 print('Initial float: ', floatNum)
 
