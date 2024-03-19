@@ -100,10 +100,10 @@ class GUI:
         self.port_entry_text = StringVar()
         self.port_entry = Entry(self.frame_connect, textvariable=self.port_entry_text, width=5,font=("arial", 10, "bold"))
         self.port_entry.pack(side='left', pady=5)                      
-        self.ip_entry_text.set("192.168.1.67")
-        self.port_entry_text.set("4001")
-        # self.ip_entry_text.set("127.0.0.1")
-        # self.port_entry_text.set(10319)
+        #self.ip_entry_text.set("192.168.1.67")
+        #self.port_entry_text.set("4001")
+        self.ip_entry_text.set("127.0.0.1")
+        self.port_entry_text.set(10319)
         
         # Connect Button
         self.connect_button = Button(
@@ -121,7 +121,7 @@ class GUI:
             self.modbus_command_entry.config(state='normal')
             # Start Modbus Async Client
             self.modbus_async_client = ModbusAsyncClient(
-                self.receive_message_from_server, comm='tcp', host=self.ip_entry_text, port=self.port_entry_text, framer='rtu')
+                self.receive_message_from_server, comm='tcp', host=self.ip_entry_text.get(), port=self.port_entry_text.get(), framer='rtu')
             asyncio.run(self.modbus_async_client.start_client())
         else:
             self.connect_button.config(text="Connect")
@@ -135,9 +135,11 @@ class GUI:
 
     # Function to recieve msg
     def receive_message_from_server(self, buffer):
-        self.pressure_sensor_val.set(buffer[4:6].hex())
-        self.modbus_log_text.insert('end', 'rcvd ' + ' '.join(re.findall('..?', buffer.hex())) + '\n')
-        self.modbus_log_text.yview(END)
+        print(buffer)
+        print(type(buffer))
+        self.pressure_sensor_val.set(buffer)
+        self.modbus_log_text.insert('end', 'rcvd ' + str(buffer) +'\n') #' '.join(re.findall('..?', buffer.hex())) + '\n')
+        self.modbus_log_text.yview('end')
     
     
     # Put pressure sensor label on the form
