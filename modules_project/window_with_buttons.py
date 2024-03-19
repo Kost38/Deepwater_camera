@@ -100,10 +100,10 @@ class GUI:
         self.port_entry_text = StringVar()
         self.port_entry = Entry(self.frame_connect, textvariable=self.port_entry_text, width=5,font=("arial", 10, "bold"))
         self.port_entry.pack(side='left', pady=5)                      
-        self.ip_entry_text.set("192.168.1.67")
-        self.port_entry_text.set("4001")
-        #self.ip_entry_text.set("127.0.0.1")
-        #self.port_entry_text.set(10319)
+        #self.ip_entry_text.set("192.168.1.67")
+        #self.port_entry_text.set("4001")
+        self.ip_entry_text.set("127.0.0.1")
+        self.port_entry_text.set(10319)
         
         # Connect Button
         self.connect_button = Button(
@@ -339,7 +339,7 @@ class GUI:
         message.append(ba[1])
 #        self.modbus_log_text.insert('end', message.decode('utf-8') + '\n')
         self.modbus_log_text.insert('end', 'send ' + ' '.join(re.findall('..?', message.hex()))+ '\n')
-        self.modbus_log_text.yview(END)
+        self.modbus_log_text.yview('end')
         #self.client_socket.send(message)
 
     # Handle closing the window
