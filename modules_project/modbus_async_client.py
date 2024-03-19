@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 """Pymodbus asynchronous client for connection to the server with sensors"""
 import asyncio # for AsyncModbusTcpClient
+import struct
 #import helper
 #import time
 #import datetime
@@ -17,16 +18,18 @@ class ModbusAsyncClient():
     
     # Constructor
     def __init__(self, callback_for_modbus, comm, host, port, framer): # comm='tcp', framer='rtu' for sensors
-        # Available statuses: 'NotConnected', 'Connected', 'Closed'
-        self.connection_status = 'NotConnected'
+        self.callback_for_modbus = callback_for_modbus
         self.comm = comm
         self.host = host
         self.port = port
-        self.framer = framer
-        self.callback_for_modbus = callback_for_modbus
+        self.framer = framer        
+        # Available statuses: 'NotConnected', 'Connected', 'Closed'
+        self.connection_status = 'NotConnected'
+        self.time_between_transactions = 5 # sec
 
     # Setup a client for connection to the server with sensors
-    def setup_async_client():
+    def setup_async_client(self):
+        print(self.comm, self.host, self.port, self.framer)
         # Create a client
         if self.comm == "tcp": # Communication
             client = ModbusClient.AsyncModbusTcpClient(
@@ -94,7 +97,7 @@ class ModbusAsyncClient():
         
 
     # Start listening asynchronously the pressure sensor PTM RS-485
-    async def modbus_transaction(async_client, slave, function, address, count_val):
+    async def modbus_transaction(self, async_client, slave, function, address, count_val):
         try:
             #print('slave=', slave , ' function=', function, ' address=', address, 'count/val=', count_val)
         
@@ -105,7 +108,7 @@ class ModbusAsyncClient():
             elif (function == 6):
                 read_result = await async_client.write_register(address, value=count_val, slave=slave) 
 
-            for i in range(count_val):
+            for i in range(len(read_result.registers)):
                 self.callback_for_modbus(read_result.registers[i])
                 
             #assert len(read_result.registers) == count_val
@@ -130,7 +133,7 @@ class ModbusAsyncClient():
         return read_result
 
     # Make a client connection to the server with sensors and start listening them
-    async def start_client(): 
+    async def start_client(self): 
         # Turn on logging
         pymodbus_apply_logging_config("DEBUG")
         
@@ -162,21 +165,21 @@ class ModbusAsyncClient():
         print("### Connection to the server closed" )
         
     # Make a client connection to the server with sensors and start listening them
-    async def stop_client():
+    def stop_client(self):
         self.connection_status = 'Closed'
         
         
         
-    async def read_from_sensor_in_loop( async_client, slave, function, address, count_val):
+    async def read_from_sensor_in_loop(self, async_client, slave, function, address, count_val):
         
         loop = asyncio.get_running_loop()    
         cur_time = loop.time()        
         
         while (self.connection_status != 'Closed'):
             # print(datetime.datetime.now()) # May be needed
-            next_call_time = cur_time + 1
+            next_call_time = cur_time + self.time_between_transactions
             
-            await modbus_transaction(async_client, slave, function, address, count_val)
+            await self.modbus_transaction(async_client, slave, function, address, count_val)
             
             cur_time = loop.time()
             if (cur_time > next_call_time):
@@ -185,53 +188,53 @@ class ModbusAsyncClient():
 
 
     # Start listening asynchronously the pressure sensor PTM RS-485
-    async def run_pressure_sensor(async_client):
+    async def run_pressure_sensor(self, async_client):
         print(f"### Start listening the pressure sensor PTM RS-485" )
 
         # Read serial number
-        registers = await modbus_transaction(
+        regres = await self.modbus_transaction(
             async_client, slave = 0xF0, function = 4, address = 7, count_val = 1)
         print(regres.registers[0]) 
 
         # Read pressure and temperature from registers in a loop
-        await read_from_sensor_in_loop(
+        await self.read_from_sensor_in_loop(
                 async_client, slave = 0xF0, function = 4, address = 0, count_val = 2)
 
         
 
     # Start listening asynchronously the pressure sensor PTM RS-485
-    async def run_compass_sensor(async_client):
-        print(f"### Start listening the compass sensor" )
+    async def run_compass_sensor(self, async_client):
+        print("### Start listening the compass sensor" )
 
         # Read CalStatus
-        regres = await modbus_transaction(async_client, slave = 0x0A, function = 3, address = 0, count_val = 1)
+        regres = await self.modbus_transaction(async_client, slave = 0x0A, function = 3, address = 0, count_val = 1)
         print(regres.registers[0])
         
         # # If standard mode 
         #if (regres.registers[0] == 0):
             # # Write  CalStatus = 1 (to start calibrating)
-        #await modbus_transaction(async_client, slave = 0x0A, function = 6, address = 0, count_val = 1)
+        #await self.modbus_transaction(async_client, slave = 0x0A, function = 6, address = 0, count_val = 1)
 
         # # Read CalStatus
-        # regres = await modbus_transaction(async_client, slave = 0x0A, function = 3, address = 0, count_val = 1)
+        # regres = await self.modbus_transaction(async_client, slave = 0x0A, function = 3, address = 0, count_val = 1)
         #print(regres.registers[0])
             
         # If calibration mode
         #if (regres.registers[0] == 2):
             # # Write  CalStatus = 3 (to stop calibrating)
-        #    await modbus_transaction(async_client, slave = 0x0A, function = 6, address = 0, count_val = 3)
+        #    await self.modbus_transaction(async_client, slave = 0x0A, function = 6, address = 0, count_val = 3)
             
         # Read CalStatus
-        #regres = await modbus_transaction(async_client, slave = 0x0A, function = 3, address = 0, count_val = 1)
+        #regres = await self.modbus_transaction(async_client, slave = 0x0A, function = 3, address = 0, count_val = 1)
         #print(regres.registers[0])    
         
         # Read Tempr
-        regres = await modbus_transaction(async_client, slave = 0x0A, function = 3, address = 1, count_val = 1)
+        regres = await self.modbus_transaction(async_client, slave = 0x0A, function = 3, address = 1, count_val = 1)
         # Temperature should be deleted by 8
         print(regres.registers[0]/8) 
         
         #Read Pitch (GL_Teta) and Heading (GL_Phi)
-        regres = await modbus_transaction(async_client, slave = 0x0A, function = 3, address = 2, count_val = 4)
+        regres = await self.modbus_transaction(async_client, slave = 0x0A, function = 3, address = 2, count_val = 4)
 
         #print(regres.registers[2:4].hex())
         word1 = regres.registers[0]
@@ -249,5 +252,5 @@ class ModbusAsyncClient():
         floatHeading = struct.unpack('>f', floatHeading_bytes)[0]
         print(floatHeading) 
 
-        await read_from_sensor_in_loop(
+        await self.read_from_sensor_in_loop(
             async_client, slave = 0xF0, function = 3, address = 2, count_val = 4)
