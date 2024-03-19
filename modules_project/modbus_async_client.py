@@ -25,7 +25,10 @@ class ModbusAsyncClient():
         self.framer = framer        
         # Available statuses: 'NotConnected', 'Connected', 'Closed'
         self.connection_status = 'NotConnected'
+        # Time interval for messaging the server
         self.time_between_transactions = 5 # sec
+        # Resource lock for multithreading
+        self.resource_lock = threading.Lock()
 
     # Setup a client for connection to the server with sensors
     def setup_async_client(self):
@@ -93,8 +96,44 @@ class ModbusAsyncClient():
 
         # pymodbus_apply_logging_config("DEBUG") # Alternative way of logging
         print("### Connection parameters are set up")
-        return client
+        return client    
+
+    # Make a client connection to the server with sensors and start listening them
+    async def start_client(self): 
+        # Turn on logging
+        pymodbus_apply_logging_config("DEBUG")
         
+        # Available statuses: 'NotConnected', 'Connected', 'Closed'
+        self.connection_status = 'NotConnected'
+        
+        # Setup a client connection
+        async_client = self.setup_async_client()
+        # Localhost
+        #async_client = setup_async_client(comm="tcp", host="127.0.0.1", port=10319, framer=Framer.RTU)
+        # Compass
+        #async_client = setup_async_client(comm="tcp", host="84.237.21.184", port=4001, framer=Framer.RTU)
+        # Pressure sensor
+        #async_client = setup_async_client(comm="tcp", host="192.168.1.67", port=4001, framer=Framer.RTU)
+                
+        # Connect to the server
+        await async_client.connect()
+        assert async_client.connected # test client is connected
+        self.connection_status = 'Connected'
+        print("### Connected to the server with sensors ")        
+            
+        # Listen to sensors
+        async with asyncio.TaskGroup() as tg:
+            task1 = tg.create_task(self.run_pressure_sensor(async_client))
+            task2 = tg.create_task(self.run_compass_sensor(async_client))
+          
+        # Close connection
+        async_client.close()
+        print("### Connection to the server closed" )
+        
+    # Make a client connection to the server with sensors and start listening them
+    def stop_client(self):
+        self.connection_status = 'Closed'
+
 
     # Start listening asynchronously the pressure sensor PTM RS-485
     async def modbus_transaction(self, async_client, slave, function, address, count_val):
@@ -132,54 +171,31 @@ class ModbusAsyncClient():
 
         return read_result
 
-    # Make a client connection to the server with sensors and start listening them
-    async def start_client(self): 
-        # Turn on logging
-        pymodbus_apply_logging_config("DEBUG")
-        
-        # Available statuses: 'NotConnected', 'Connected', 'Closed'
-        self.connection_status = 'NotConnected'
-        
-        # Setup a client connection
-        async_client = self.setup_async_client()
-        # Localhost
-        #async_client = setup_async_client(comm="tcp", host="127.0.0.1", port=10319, framer=Framer.RTU)
-        # Compass
-        #async_client = setup_async_client(comm="tcp", host="84.237.21.184", port=4001, framer=Framer.RTU)
-        # Pressure sensor
-        #async_client = setup_async_client(comm="tcp", host="192.168.1.67", port=4001, framer=Framer.RTU)
-                
-        # Connect to the server
-        await async_client.connect()
-        assert async_client.connected # test client is connected
-        print("### Connected to the server with sensors ")
-        self.connection_status = 'Connected'
-            
-        # Listen to sensors
-        async with asyncio.TaskGroup() as tg:
-            task1 = tg.create_task(self.run_pressure_sensor(async_client))
-            task2 = tg.create_task(self.run_compass_sensor(async_client))
-          
-        # Close connection
-        async_client.close()
-        print("### Connection to the server closed" )
-        
-    # Make a client connection to the server with sensors and start listening them
-    def stop_client(self):
-        self.connection_status = 'Closed'
-        
-        
-        
+
+    async def read_from_sensor_in_new_thread(self, async_client, slave, function, address, count_val):
+        try:
+            # Recieve messages in a new thread
+            thread = threading.Thread(
+                target=self.read_from_sensor_in_loop, args=(async_client, slave, function, address, count_val)
+            )
+            thread.daemon = True
+            thread.start()
+        except Exception as err:
+            print('Exception while making transactions to a sensor:\n', err)
+            pass
+
     async def read_from_sensor_in_loop(self, async_client, slave, function, address, count_val):
-        
         loop = asyncio.get_running_loop()    
-        cur_time = loop.time()        
+        cur_time = loop.time()
         
-        while (self.connection_status != 'Closed'):
-            # print(datetime.datetime.now()) # May be needed
-            next_call_time = cur_time + self.time_between_transactions
+        while (True):
             
-            await self.modbus_transaction(async_client, slave, function, address, count_val)
+            with self.resource_lock:
+                if(self.connection_status == 'Closed'):
+                    break
+                next_call_time = next_call_time + self.time_between_transactions
+            
+                await self.modbus_transaction(async_client, slave, function, address, count_val)
             
             cur_time = loop.time()
             if (cur_time > next_call_time):
@@ -197,10 +213,9 @@ class ModbusAsyncClient():
         print(regres.registers[0]) 
 
         # Read pressure and temperature from registers in a loop
-        await self.read_from_sensor_in_loop(
+        await self.read_from_sensor_in_new_thread(
                 async_client, slave = 0xF0, function = 4, address = 0, count_val = 2)
 
-        
 
     # Start listening asynchronously the pressure sensor PTM RS-485
     async def run_compass_sensor(self, async_client):
@@ -252,5 +267,5 @@ class ModbusAsyncClient():
         floatHeading = struct.unpack('>f', floatHeading_bytes)[0]
         print(floatHeading) 
 
-        await self.read_from_sensor_in_loop(
+        await self.read_from_sensor_in_new_thread(
             async_client, slave = 0xF0, function = 3, address = 2, count_val = 4)
