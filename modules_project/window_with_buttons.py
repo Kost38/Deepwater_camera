@@ -61,7 +61,7 @@ class GUI:
         self.display_modbus_log_text_box()
 
     def display_video_player(self):
-    
+        # Video player Frame
         self.video_frame = Frame(self.frame_left, width=500, height=400, bg='black')
         self.video_frame.pack(side='top', anchor='nw', expand='true', fill='both',) # Video frame frame.pack()
 
@@ -74,13 +74,12 @@ class GUI:
         )
         self.video_start_button.pack(side='left', anchor='sw', padx=5, pady=5)       
 
-
     def on_video_start_button(self, videoPlayer):
         if self.video_start_button.config('text')[-1] == 'start':
             self.video_start_button.config(text="stop")
             videoPlayer.start_record()
         else:
-            self.stop_record()
+            videoPlayer.stop_record()
             self.video_start_button.config(text="start")
 
     # Put IP adress Entry, Port Entry boxes and Connect Button on the form
@@ -121,7 +120,12 @@ class GUI:
             self.modbus_command_entry.config(state='normal')
             # Start Modbus Async Client
             self.modbus_async_client = ModbusAsyncClient(
-                self.receive_message_from_server, comm='tcp', host=self.ip_entry_text.get(), port=self.port_entry_text.get(), framer='rtu')
+                self.update_modbus_log_callback, 
+                comm='tcp', 
+                host=self.ip_entry_text.get(), 
+                port=self.port_entry_text.get(), 
+                framer='rtu'
+            )
             asyncio.run(self.modbus_async_client.start_client())
         else:
             self.connect_button.config(text="Connect")
@@ -133,15 +137,6 @@ class GUI:
             self.modbus_async_client.stop_client()
 
 
-    # Function to recieve msg
-    def receive_message_from_server(self, buffer):
-        print(buffer)
-        print(type(buffer))
-        self.pressure_sensor_val.set(buffer)
-        self.modbus_log_text.insert('end', 'rcvd ' + str(buffer) +'\n') #' '.join(re.findall('..?', buffer.hex())) + '\n')
-        self.modbus_log_text.yview('end')
-    
-    
     # Put pressure sensor label on the form
     def display_pressure_sensor(self):
         # Pressure sensors Frame
@@ -284,6 +279,15 @@ class GUI:
         self.modbus_command_entry.bind('<Return>', self.on_modbus_command_enter_pressed)
         self.modbus_command_entry.config(state='disabled')
 
+    # Handle Enter key press
+    def on_modbus_command_enter_pressed(self, event):
+        # Send Modbus command to the modbus_async_client
+        data = self.modbus_command_entry.get().strip()
+        message = bytearray.fromhex(data)        
+        asyncio.run(self.modbus_async_client.send_modbus_command(message), debug=True)
+        
+        return 'break'
+
     # Put "Modbus log" transcript area Text box on the form
     def display_modbus_log_text_box(self):
         # Modbus log Frame
@@ -299,52 +303,17 @@ class GUI:
         scrollbar = Scrollbar(self.frame_mb_log, command=self.modbus_log_text.yview, orient='vertical')        
         scrollbar.pack(side='right', fill='y', padx=2)
         self.modbus_log_text.config(yscrollcommand=scrollbar.set)
-        self.modbus_log_text.bind('<KeyPress>', lambda e: 'break') 
-
-    # Handle Enter key press
-    def on_modbus_command_enter_pressed(self, event):
-        self.send_modbus_command()
-
-    # Send Modbus command to the remote server
-    def send_modbus_command(self):
-        data = self.modbus_command_entry.get().strip()
-        message = bytearray.fromhex(data)
-        #self.send_message(message)
-
-        return 'break'
-
-    # Calculate CRC
-    def modbusCrc(self, msg):
-        crc = 0xFFFF
-        for n in range(len(msg)):
-            crc ^= msg[n]
-            for i in range(8):
-                if crc & 1:
-                    crc >>= 1
-                    crc ^= 0xA001
-                else:
-                    crc >>= 1
-        return crc
-
-    # Send message to the remote server
-    def send_message(self, message):
-        if not(self.connected):
-            messagebox.showerror("Error", "Not connected")
-            return
-        crc = self.modbusCrc(message)
-#        print("0x%04X"%(crc))
-        ba = crc.to_bytes(2, byteorder='little')
-#        print("%02X %02X"%(ba[0], ba[1]))
-        message.append(ba[0])
-        message.append(ba[1])
-#        self.modbus_log_text.insert('end', message.decode('utf-8') + '\n')
-        self.modbus_log_text.insert('end', 'send ' + ' '.join(re.findall('..?', message.hex()))+ '\n')
+        self.modbus_log_text.bind('<KeyPress>', lambda e: 'break')
+        
+    def update_modbus_log_callback(self, message_bytes):
+        self.modbus_log_text.insert('end', message_bytes.hex(' ') + '\n')
         self.modbus_log_text.yview('end')
-        #self.client_socket.send(message)
+    
 
     # Handle closing the window
     def on_close_window(self):
         if messagebox.askokcancel("Quit", "Do you want to quit?"):
+            #self.modbus_async_client.stop_client()
             root.destroy()
             #if self.connected: self.client_socket.close()
             exit(0)
