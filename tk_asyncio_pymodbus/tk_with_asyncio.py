@@ -2,8 +2,8 @@ import asyncio # Lib for asynchronous programming
 import threading # Lib for multithreaded programming 
 import queue # Multithreaded queue
 
-import tkinter as tk # Tkinter lib for graphical interface
-import tkinter.ttk as ttk # Tk themed widget set
+import tkinter # Tkinter lib for graphical interface
+from tkinter import Frame # Frame - Tk themed widget set
 
 
 from window_with_buttons import GUI # Class of the GUI window
@@ -32,14 +32,17 @@ asyncio_gen_queue: queue.Queue = queue.Queue()
 asyncio_loop_wait_period = 0.01 # sec
 
 # When a task is finished the text one will be sent to a queue after this period of time
-min_time_between_tasks = 0.4 # sec
+min_time_between_tasks =  0.1 # sec
 
 # Time to wait before starting a next sequence of polling sensors
-time_between_transactions = 0.01 # sec
+time_between_transactions = 0.2 # sec
+
+# Timeout for connection and sending packets for Async Modbus Client
+modbus_timeout = 0.1
 
 
 # Pressure sensor
-#host_ip = "192.168.1.67" 
+#host_ip = "192.168.1.67" # old
 host_ip = "10.0.10.167" # current
 port_addr = "4001"
 # Compass
@@ -56,17 +59,16 @@ port_addr = "4001"
 
 # Flag which shows that a future task is sheduled and not done
 asyncio_future_scheduled = False
-# Flag which shows that there are a Tkinter package is in the queue
-tk_package_in_queue = False
+# Flag which shows that there are a package from Tkinter in queue
+package_from_tk_is_in_queue = False
 
 
 # Asyncio permanent loop service (This runs in the special thread)
 async def asyncio_service_loop(gui, aio_loop_shutdown_initiated: threading.Event):
     """ 
-      Consume a package from the Tkinter queue (whose packages were generated in the Tkinter).
+      Consume a package from Tkinter.
       Create a future task for handling it asyncronously.
-      When done put the produced package (the result of the future task) 
-      in the queue whose packages are from asyncio.
+      When done put the produced package (the result of the future task) in the specified queue.
       Loop to a new iteration after a period of time.
     """   
     # Communicate the asyncio running loop status to tkinter via a global variable
@@ -74,7 +76,7 @@ async def asyncio_service_loop(gui, aio_loop_shutdown_initiated: threading.Event
     asyncio_running_loop = asyncio.get_running_loop()
     timed_msg('In a thread: Get asyncio running loop: ' + str(asyncio_running_loop))
     
-    global tk_package_in_queue    
+    global package_from_tk_is_in_queue    
     global asyncio_future_scheduled
     asyncio_future_scheduled = False
     # Create an empty future
@@ -86,18 +88,25 @@ async def asyncio_service_loop(gui, aio_loop_shutdown_initiated: threading.Event
         
         if (asyncio_future_scheduled == False):
             try:     
-                # Consume Tkinter package
-                tk_gen_package = tk_gen_queue.get_nowait()
+                # Consume a package from Tkinter
+                package_from_tk = tk_gen_queue.get_nowait()
             except queue.Empty:
                 pass # Try next time
-            else: # Got a Tkinter package
-                if (tk_gen_package != 'Idle'):
-                # Create a future task to handle Tkinter package
-                    asyncio_future = asyncio.ensure_future(gui.handle_tk_gen_package_in_asyncio(tk_gen_package))
+            else: # Got a package from Tkinter
+                timed_msg('---Got a package from Tkinter: "' + package_from_tk + '" in Asyncio loop')
+            
+                if (package_from_tk != 'Idle'):
+                # Create a future task to handle package from Tkinter
+                    package_from_tk_is_in_queue = False 
+                    asyncio_future = asyncio.ensure_future(gui.handle_package_in_asyncio_loop(package_from_tk))
                     asyncio_future_scheduled = True
                 else:
-                   tk_package_in_queue = False 
-                
+                    package_from_tk_is_in_queue = False 
+                    
+                #timed_msg('package_from_tk_is_in_queue: ' + str(package_from_tk_is_in_queue))                    
+                #timed_msg('asyncio_future_scheduled: ' + str(asyncio_future_scheduled))
+                    
+
         if asyncio_future.done(): 
             try:
                 # Put a package to the asyncio generated queue (don't use the thread-blocking 'put' method)
@@ -106,10 +115,16 @@ async def asyncio_service_loop(gui, aio_loop_shutdown_initiated: threading.Event
                 pass # Try next time
             else:
                 asyncio_future_scheduled = False
-                tk_package_in_queue = False # Here the Tkinter package is fully handled
+                package_from_tk_is_in_queue = False # Here the Tkinter package is fully handled
                 asyncio_future = asyncio.Future()  
-                # Sleep some more before reading a new tk generated package and sheduling a new asyncio task...
+                # Sleep some more before reading a new tkinter generated package and sheduling a new asyncio task...
                 asyncio_loop_wait_period = min_time_between_tasks
+                
+                #timed_msg('-----asyncio_service_loop--fut done---: ')
+                #timed_msg('package_from_tk_is_in_queue: ' + str(package_from_tk_is_in_queue))                    
+                #timed_msg('asyncio_future_scheduled: ' + str(asyncio_future_scheduled))
+        
+
         
         # (The usual wait command - threading.Event.wait() - would block the current thread and the asyncio loop)
         await asyncio.sleep(asyncio_loop_wait_period)
@@ -122,21 +137,35 @@ def check_asyncio_event_loop_is_found():
         timed_msg('Waited for Asyncio event loop before starting Tkinter loop')
         
         
-# Put a package to tkinter generated queue        
-def put_to_tk_gen_queue(tk_gen_package, mainframe: ttk.Frame):
-    poll_interval = 10 # 0.01 s
+# Put a package from tkinter to queue        
+def put_package_from_tk_to_queue(package_from_tk, mainframe: Frame):
+    poll_interval = 1000 #10 # 0.01 s
+
+    global package_from_tk_is_in_queue  
+
+    timed_msg('---Try to put a package from Tkinter: "' + package_from_tk + '" to queue')
+    #timed_msg('asyncio_future_scheduled: ' + str(asyncio_future_scheduled))
+    #timed_msg('package_from_tk_is_in_queue: ' + str(package_from_tk_is_in_queue))
     
-    global tk_package_in_queue            
-    if (not tk_gen_queue.full()) and (not asyncio_future_scheduled) and (not tk_package_in_queue):
-        # Put a work package to the queue (but don't wait). Asyncio can't wait for the thread-blocking 'put' method
-        tk_gen_queue.put_nowait(tk_gen_package)  
-        tk_package_in_queue = True
+    if (package_from_tk == 'StopSensors' or package_from_tk == 'Disconnect' or package_from_tk == 'Idle'):
+        tk_gen_queue.queue.clear()
+        package_from_tk_is_in_queue = False
+              
+    if (not tk_gen_queue.full()) and (not asyncio_future_scheduled) and (not package_from_tk_is_in_queue):
+        # Put a package from tkinter to the queue (but don't wait). Asyncio can't wait for the thread-blocking 'put' method
+        tk_gen_queue.put_nowait(package_from_tk)  
+        package_from_tk_is_in_queue = True
+        
+        #timed_msg('package_from_tk_is_in_queue: ' + str(package_from_tk_is_in_queue))                    
+        #timed_msg('asyncio_future_scheduled: ' + str(asyncio_future_scheduled))
     else:
-        mainframe.after(poll_interval, lambda: put_to_tk_gen_queue(tk_gen_package, mainframe))            
+        mainframe.after(poll_interval, lambda: put_package_from_tk_to_queue(package_from_tk, mainframe))            
+        
+
 
                 
 #  Start the Tkinter loop service. (It runs in the Main Thread.)
-def tk_service_loop(mainframe: ttk.Frame, gui):
+def tk_service_loop(mainframe: Frame, gui):
     """ 
       Consume a package from the queue whose packages were generated from asyncio. 
       If ok, call syncronously a handling function for the asyncio package.
@@ -149,15 +178,18 @@ def tk_service_loop(mainframe: ttk.Frame, gui):
     poll_interval =  1 # 0.01 s - Here time is in milliseconds
     if (asyncio_future_scheduled == False):
         try:
-            # Get a work package (but don't wait). Tkinter can't wait for the thread-blocking 'get' method...
-            asyncio_gen_package = asyncio_gen_queue.get_nowait()                   
+            # Get a package from asyncio (but don't wait). Tkinter can't wait for the thread-blocking 'get' method...
+            package_from_asyncio = asyncio_gen_queue.get_nowait()                   
         except queue.Empty:
             pass
         else:
-            # Handle a package from asyncio in tkinter. Put the result package from tkinter in tk_gen_queue.
-            tk_gen_package = gui.handle_asyncio_gen_package_in_tk(asyncio_gen_package)
-            put_to_tk_gen_queue(tk_gen_package, mainframe)
-            # Wait some more time before reading and handling a new asyncio generated package
+            timed_msg('---Got a package from Asyncio: "' + package_from_asyncio[0] + '" in Tkinter loop')
+            #timed_msg('package_from_tk_is_in_queue: ' + str(package_from_tk_is_in_queue))                    
+        
+            # Handle a package from asyncio in tkinter. Put the result package from tkinter to tk_gen_queue.
+            package_from_tk = gui.handle_package_in_tk_loop(package_from_asyncio)
+            put_package_from_tk_to_queue(package_from_tk, mainframe)
+            # Wait some more time before reading and handling a new package from asyncio
             poll_interval = int(min_time_between_tasks * 1000)
     
     # Schedule a call of this function again in the tkinter event loop after the poll interval.
@@ -167,12 +199,12 @@ def tk_service_loop(mainframe: ttk.Frame, gui):
 # Set up working environments for asyncio and tkinter (This runs in the Main Thread)
 def main():    
     # Create Tkinter
-    tk_root = tk.Tk()
-    mainframe = ttk.Frame(tk_root)
+    tk_root = tkinter.Tk()
+    mainframe = Frame(tk_root)
     timed_msg('TK created...' )
     
     # Create GUI interface in Tkinter
-    gui = GUI(tk_root, mainframe, put_to_tk_gen_queue, time_between_transactions, host_ip, port_addr)
+    gui = GUI(tk_root, mainframe, put_package_from_tk_to_queue, time_between_transactions, modbus_timeout, host_ip, port_addr)
     timed_msg('GUI started...' )
 
     # Schedule the work queue consumer loop in the tkinter event loop

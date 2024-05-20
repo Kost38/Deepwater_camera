@@ -4,7 +4,7 @@ import asyncio # for AsyncModbusTcpClient
 import struct
 #import helper
 #import time
-#import datetime
+import datetime
 import threading # for multiple proccess 
 
 import pymodbus.client as ModbusClient
@@ -14,10 +14,13 @@ from pymodbus import (
     pymodbus_apply_logging_config,
 )
 
+# Turn on logging
+pymodbus_apply_logging_config("DEBUG")
+
 class ModbusAsyncClientWrapper():
     
     # Constructor
-    def __init__(self, time_between_transactions, comm, host, port, framer): # comm='tcp', framer='rtu' for sensors
+    def __init__(self, time_between_transactions, timeout, comm, host, port, framer): # comm='tcp', framer='rtu' for sensors
         #self.modbus_transaction_callback = modbus_transaction_callback
         self.comm = comm
         self.host = host
@@ -28,8 +31,7 @@ class ModbusAsyncClientWrapper():
         self.connection_status = 'Disconnected'
         # Time interval for messaging the server
         self.time_between_transactions = time_between_transactions # sec
-        # Turn on logging
-        pymodbus_apply_logging_config("DEBUG")
+        self.timeout = timeout
         
         # Resource lock for multithreading
         #self.resource_lock = threading.Lock()
@@ -51,6 +53,9 @@ class ModbusAsyncClientWrapper():
                 # retry_on_empty=False,
                 # TCP setup parameters:
                 # source_address=("localhost", 0),
+                timeout = self.timeout,
+                retries = 1,
+                retry_on_empty = False
             )
         elif self.comm == "udp":
             client = ModbusClient.AsyncModbusUdpClient(
@@ -132,6 +137,8 @@ class ModbusAsyncClientWrapper():
                 print("### Connected to the server with sensors ") 
                 self.connection_status = 'Connected'
                
+        #self.async_client.socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)        
+               
         return ['ConnectCalled']
 
     # Close the client connection to the server with sensors
@@ -159,7 +166,7 @@ class ModbusAsyncClientWrapper():
     async def modbus_transaction(self, slave, function, address, count_val):
         try:
             #print('slave=', slave , ' function=', function, ' address=', address, 'count/val=', count_val)
-            
+                  
             if (function == 3):
                 read_result = await self.async_client.read_holding_registers(address, count_val, slave)
             elif (function == 4):
@@ -168,16 +175,19 @@ class ModbusAsyncClientWrapper():
                 read_result = await self.async_client.write_coil(address, count_val, slave)
             elif (function == 6):
                 read_result = await self.async_client.write_register(address, value=count_val, slave=slave)
+            else:
+                return False    
+   
 
             #print('read_result type: ', type(read_result))
             #print('registers type: ', type(read_result.registers))
-            print('registers len: ', len(read_result.registers))
+            #print('registers len: ', len(read_result.registers))
             #print('bits type: ', type(read_result.bits))
             #print('bits len: ', len(read_result.bits))
 
-            for i in range(len(read_result.registers)):
-                print('registers [', i, '] = ', read_result.registers[i])
-                print('registers i type: ', type(read_result.registers[i]))
+            #for i in range(len(read_result.registers)):
+            #    print('registers [', i, '] = ', read_result.registers[i])
+            #    print('registers i type: ', type(read_result.registers[i]))
 
             #if (read_result):
                 #message = self.async_client.convert_from_registers(read_result.registers, self.async_client.DATATYPE.STRING)          
@@ -196,7 +206,10 @@ class ModbusAsyncClientWrapper():
             # THIS IS NOT A PYTHON EXCEPTION, but a valid modbus message
             #self.async_client.close()
             
-        return read_result.registers
+        if (not read_result):
+            return False
+        else:
+            return read_result.registers
 
 
 
@@ -252,16 +265,24 @@ class ModbusAsyncClientWrapper():
         
 
     async def prepare_pressure_sensor(self): 
-        print("### Start listening the pressure sensor PTM RS-485" )
-        # Read serial number
+        # Read the serial number of the pressure sensor PTM RS-485
         registers = await self.modbus_transaction(slave = 0xF0, function = 4, address = 7, count_val = 1)        
-        return ['PressureTransactionCommited', registers[0]]
+        if (not registers):
+            timed_msg('No values for pressure serial number...')
+            return ['PressureSerialNumberCommited', 0]
+        else:
+            return ['PressureSerialNumberCommited', registers[0]]
 
     async def transact_pressure_sensor(self):
         # Read pressure and temperature from registers
         registers = await self.modbus_transaction(slave = 0xF0, function = 4, address = 0, count_val = 2)
-        # Convert to meters by multipliyng on 0.16315456
-        return ['PressureTransactionCommited', convert_uint(registers[0]) * 0.16315456]
+        
+        if (not registers):
+            timed_msg('No values for pressure sensor...')
+            return ['PressureTransactionCommited', 0]
+        else:
+            # Convert to meters by multipliyng on 0.16315456
+            return ['PressureTransactionCommited', convert_uint(registers[0]) * 0.16315456]
 
 
     async def start_calibrating_compass(self):
@@ -290,35 +311,52 @@ class ModbusAsyncClientWrapper():
         return ['CompassResetCommited']
         
     async def read_cal_status_from_compass(self):
-        print("### Start listening the compass sensor" )
         # Read CalStatus 
         registers = await self.modbus_transaction(slave = 0x0A, function = 3, address = 0, count_val = 1)
-        return ['CompassCalStatusTransactionCommited', registers[0]]
+        # If some error
+        if (not registers):
+            timed_msg('No values for compass cal status...')
+            return ['CompassCalStatusTransactionCommited', 0]
+        else:
+            return ['CompassCalStatusTransactionCommited', registers[0]]
         
     async def read_temperature_from_compass_sensor(self):
         # Read Tempr
         registers = await self.modbus_transaction(slave = 0x0A, function = 3, address = 1, count_val = 1)
-        # Temperature should be divided by 8
-        return ['CompassTemprTransactionCommited', registers[0]/8]
+        
+        if (not registers):
+            timed_msg('No values for compass tempr...')
+            return ['CompassTemprTransactionCommited', 0]
+        else:
+            # Temperature should be divided by 8
+            return ['CompassTemprTransactionCommited', registers[0]/8]
         
     async def read_pitch_heading_from_compass_sensor(self):
         #Read Pitch (GL_Teta) and Heading (GL_Phi)
         registers = await self.modbus_transaction(slave = 0x0A, function = 3, address = 2, count_val = 4)
-
-        # Pack two integers in standard 
-        # '>HH' big-endian, 2-byte integer, 2-byte integer
-        floatPitch_bytes = struct.pack('>HH', registers[1], registers[0])
-        # '>f' big-endian, 2-byte integer, 2-byte integer
-        floatPitch = struct.unpack('>f', floatPitch_bytes)[0]
-                
-   
-        floatHeading_bytes = struct.pack('>HH', registers[3], registers[2])
-        floatHeading = struct.unpack('>f', floatHeading_bytes)[0]
         
-        return ['CompassPitchHeadingTransactionCommited', floatPitch, floatHeading]
+        if (not registers):
+            timed_msg('No values for pithch, heading...')
+            return ['CompassPitchHeadingTransactionCommited', 0, 0]
+        else:
+            # Pack two integers in standard 
+            # '>HH' big-endian, 2-byte integer, 2-byte integer
+            floatPitch_bytes = struct.pack('>HH', registers[1], registers[0])
+            # '>f' big-endian, 2-byte integer, 2-byte integer
+            floatPitch = struct.unpack('>f', floatPitch_bytes)[0]
+                    
+       
+            floatHeading_bytes = struct.pack('>HH', registers[3], registers[2])
+            floatHeading = struct.unpack('>f', floatHeading_bytes)[0]
+            
+            return ['CompassPitchHeadingTransactionCommited', floatPitch, floatHeading]
         
         
 def convert_uint(x):
     if x >= 0x7FFF:
         x -= 0xFFFF
     return x
+    
+# Print timestamped messsage    
+def timed_msg(msg: str):
+    print(datetime.datetime.now().strftime('%M:%S.%f')[:-3], msg)
