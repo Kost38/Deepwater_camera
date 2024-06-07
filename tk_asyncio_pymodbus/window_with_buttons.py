@@ -18,11 +18,11 @@ class GUI:
     last_received_message = None
 
     # Constructor
-    def __init__(self, tk_root, mainframe, put_to_tk_gen_queue_callback, time_between_transactions, modbus_timeout, host, port):
+    def __init__(self, tk_root, mainframe, put_tk_command_to_queue_callback, delay_after_chain_of_commands, modbus_timeout, host, port):
         self.tk_root = tk_root
         self.mainframe = mainframe
-        self.put_package_from_tk_to_queue = put_to_tk_gen_queue_callback
-        self.time_between_transactions = time_between_transactions
+        self.put_tk_command_to_queue = put_tk_command_to_queue_callback
+        self.delay_after_chain_of_commands = delay_after_chain_of_commands
         self.modbus_timeout = modbus_timeout
         self.host = host
         self.port = port
@@ -149,19 +149,19 @@ class GUI:
         
         # Correct compass north Button
         self.correct_compass_north_button = Button(
-            self.frame_buttons, text="Correct north", font=("arial", 10, "bold"), command=self.on_calibrate_compass)
+            self.frame_buttons, text="Correct north", font=("arial", 10, "bold"), command=self.on_correct_compass_north)
         self.correct_compass_north_button.pack(side='left', padx=3, pady=3)
         self.correct_compass_north_button.config(state='disabled') 
         
         # Save configuration Button
         self.save_compass_configuration_button = Button(
-            self.frame_buttons, text="Save config", font=("arial", 10, "bold"), command=self.on_calibrate_compass)
+            self.frame_buttons, text="Save config", font=("arial", 10, "bold"), command=self.on_save_compass_configuration)
         self.save_compass_configuration_button.pack(side='left', padx=3, pady=3)
         self.save_compass_configuration_button.config(state='disabled') 
         
         # Reset Button
         self.reset_compass_button = Button(
-            self.frame_buttons, text="Reset", font=("arial", 10, "bold"), command=self.on_calibrate_compass)
+            self.frame_buttons, text="Reset", font=("arial", 10, "bold"), command=self.on_reset_compass)
         self.reset_compass_button.pack(side='left', padx=3, pady=3)
         self.reset_compass_button.config(state='disabled') 
         
@@ -174,16 +174,13 @@ class GUI:
             self.frame_buttons, text="Start sensors", font=("arial", 10, "bold"), command=self.on_start_sensors)
         self.start_sensors_button.pack(side='right', padx=3, pady=3)
         self.start_sensors_button.config(state='disabled') 
-        
-        
-        
-        
+
 
     # Create a modbus async client wrapper and connect to the server
     async def create_modbus_async_client_and_connect(self):
         # Create a wrapper object
         self.modbus_wrapper = ModbusAsyncClientWrapper(
-            self.time_between_transactions,
+            self.delay_after_chain_of_commands,
             self.modbus_timeout,
             comm='tcp', 
             host=self.ip_entry_text.get(), 
@@ -200,11 +197,14 @@ class GUI:
     # Handle "Connect/Disconnect" button click
     def on_connect(self):
         if self.connect_button.config('relief')[-1] == 'raised':
-            self.connect_button.config(relief="sunken") 
-            self.put_package_from_tk_to_queue('Connect', self.mainframe)            
-        else:
-            self.connect_button.config(relief="raised")
-            self.put_package_from_tk_to_queue('Disconnect', self.mainframe)
+            self.put_tk_command_to_queue('Connect', self.mainframe)            
+        else:                   
+            # Stop sensors if needed
+            if self.start_sensors_button.config('relief')[-1] == 'sunken':                
+                self.put_tk_command_to_queue('StopSensors', self.mainframe, 'Disconnect handling') 
+                self.put_tk_command_to_queue('Disconnect', self.mainframe, 'Disconnect handling') 
+            else:                
+                self.put_tk_command_to_queue('Disconnect', self.mainframe)
 
     def switch_on_connect(self):
         # Enable
@@ -221,8 +221,9 @@ class GUI:
         # Disable
         self.ip_entry.config(state='disabled')
         self.port_entry.config(state='disabled')   
-        # Rename
-        self.connect_button.config(text='Disconnect') # Instead of 'Connect'
+        # Sunk and rename
+        self.connect_button.config(relief="sunken") 
+        self.connect_button.config(text='Connected') # Instead of 'Connect'        
 
     def switch_on_disconnect(self):
         # Enable
@@ -239,241 +240,296 @@ class GUI:
         self.light2_button.config(state='disabled')
         self.light3_button.config(state='disabled')
         self.light4_button.config(state='disabled') 
-        # Rename
-        self.connect_button.config(text='Connect') # Instead of 'Disconnect'
-        if self.start_sensors_button.config('relief')[-1] == 'sunken':
-            self.start_sensors_button.config(relief="raised")
-            self.put_package_from_tk_to_queue('StopSensors', self.mainframe) 
+        # Raise and rename
+        self.connect_button.config(relief="raised")
+        self.connect_button.config(text='Connect') # Instead of 'Connected'     
         
-
-    # Handle "Calibrate compass" button click
-    def on_calibrate_compass(self): 
-        if self.calibrate_compass_button.config('relief')[-1] == 'raised':
-            self.calibrate_compass_button.config(relief="sunken")
-            self.put_package_from_tk_to_queue('StartCalibratingCompass', self.mainframe)            
-        else:
-            self.calibrate_compass_button.config(relief="raised")
-            self.put_package_from_tk_to_queue('StopCalibratingCompass', self.mainframe) 
-            
-    def switch_on_start_calibrating_compass(self): 
-        self.calibrate_compass_button.config(text="Stop calibrating") # Instead of 'Calibrate compass'
         
-    def switch_on_stop_calibrating_compass(self): 
-        self.calibrate_compass_button.config(text="Calibrate compass") # Instead of 'Stop calibrating'
-    
-    # Handle "Correct Compass North" button click
-    def on_correct_compass_north(self): 
-        self.put_package_from_tk_to_queue('CorrectCompassNorth', self.mainframe)            
-
-    # Handle "Save Compass Configuration" button click
-    def on_correct_compass_north(self): 
-        self.put_package_from_tk_to_queue('SaveCompassConfiguration', self.mainframe)  
-            
-    # Handle "Reset compass" button click
-    def on_reset_compass(self): 
-        self.put_package_from_tk_to_queue('ResetCompass', self.mainframe)
-
     # Handle "Start/Stop sensors" button click
     def on_start_sensors(self): 
         if self.start_sensors_button.config('relief')[-1] == 'raised':
-            self.start_sensors_button.config(relief="sunken")
-            self.put_package_from_tk_to_queue('StartSensors', self.mainframe)            
+            self.put_tk_command_to_queue('StartSensors', self.mainframe)            
         else:
-            self.start_sensors_button.config(relief="raised")
-            self.put_package_from_tk_to_queue('StopSensors', self.mainframe) 
+            self.put_tk_command_to_queue('StopSensors', self.mainframe) 
             
-    def switch_on_start_sensors(self): 
-        self.start_sensors_button.config(text="Stop Sensors") # Instead of 'Start Sensors
-        
+    def switch_on_start_sensors(self):
+        # Disable
+        self.calibrate_compass_button.config(state='disabled')
+        self.correct_compass_north_button.config(state='disabled')
+        self.save_compass_configuration_button.config(state='disabled')
+        self.reset_compass_button.config(state='disabled')
+        self.modbus_command_entry.config(state='disabled')
+        # Sunk and rename
+        self.start_sensors_button.config(text="Stop Sensors") # Instead of 'Start Sensors   
+        self.start_sensors_button.config(relief="sunken")
+
     def switch_on_stop_sensors(self): 
-        self.start_sensors_button.config(text="Start Sensors") # Instead of 'Stop Sensors
+        # Enable
+        self.calibrate_compass_button.config(state='normal')
+        self.correct_compass_north_button.config(state='normal')
+        self.save_compass_configuration_button.config(state='normal')
+        self.reset_compass_button.config(state='normal')
+        self.modbus_command_entry.config(state='normal')
+        # Raise and rename
+        self.start_sensors_button.config(text="Start Sensors") # Instead of 'Stop Sensors 
+        self.start_sensors_button.config(relief="raised")
 
+    # Handle "Calibrate compass" button click
+    def on_calibrate_compass(self): 
+        if self.calibrate_compass_button.config('relief')[-1] == 'raised':            
+            self.put_tk_command_to_queue('StartCompassCalibration', self.mainframe)            
+        else:            
+            self.put_tk_command_to_queue('StopCompassCalibration', self.mainframe) 
+            
+    def switch_on_start_compass_calibration(self): 
+        # Disable
+        self.connect_button.config(state='disabled')
+        self.start_sensors_button.config(state='disabled')
+        self.correct_compass_north_button.config(state='disabled')
+        self.save_compass_configuration_button.config(state='disabled')
+        self.reset_compass_button.config(state='disabled')
+        self.modbus_command_entry.config(state='disabled')
+        # Rename
+        self.calibrate_compass_button.config(text="Stop calibrating") # Instead of 'Calibrate compass'
+        self.calibrate_compass_button.config(relief="sunken")
+        
+    def switch_on_stop_compass_calibration(self): 
+        # Enable
+        self.connect_button.config(state='normal')
+        self.start_sensors_button.config(state='normal')
+        self.correct_compass_north_button.config(state='normal')
+        self.save_compass_configuration_button.config(state='normal')
+        self.reset_compass_button.config(state='normal')
+        self.modbus_command_entry.config(state='normal')
+        # Rename
+        self.calibrate_compass_button.config(text="Calibrate compass") # Instead of 'Stop calibrating'
+        self.calibrate_compass_button.config(relief="raised")
+    
+    # Handle "Correct Compass North" button click
+    def on_correct_compass_north(self): 
+        self.put_tk_command_to_queue('CorrectCompassNorth', self.mainframe)            
+         
+    # Handle "Save Compass Configuration" button click
+    def on_save_compass_configuration(self): 
+        self.put_tk_command_to_queue('SaveCompassConfiguration', self.mainframe)  
+            
+    # Handle "Reset compass" button click
+    def on_reset_compass(self): 
+        self.put_tk_command_to_queue('ResetCompass', self.mainframe)
 
-    async def handle_package_in_asyncio_loop(self, package_from_tk):  
-        #timed_msg('A package from Tkinter: "' + package_from_tk + '" is in Asyncio')
+    async def handle_command_in_asyncio_loop(self, tk_command):  
+        timed_msg('-AIO: Got and handling a Tkinter command "' + tk_command + '"')
 
-        if (package_from_tk == 'Connect'):
+        # Connect and check compass calibration status
+        
+        if (tk_command == 'Connect'):
             async_modbus_task = asyncio.ensure_future(self.create_modbus_async_client_and_connect())
             await async_modbus_task # Wait for the future
-            return async_modbus_task.result() # ['ConnectCalled'] goes to asyncio_gen_queue            
-            
-        if (package_from_tk == 'StartCalibratingCompass'):
-            async_modbus_task = asyncio.ensure_future(self.modbus_wrapper.start_calibrating_compass())
-            await async_modbus_task # Wait for the future
-            return async_modbus_task.result() # ['CalibratingCompassStarted'] Goes to asyncio_gen_queue
-            
-        if (package_from_tk == 'StopCalibratingCompass'):
-            async_modbus_task = asyncio.ensure_future(self.modbus_wrapper.stop_calibrating_compass())
-            await async_modbus_task # Wait for the future
-            return async_modbus_task.result() # ['CalibratingCompassStoped'] Goes to asyncio_gen_queue
-            
-        if (package_from_tk == 'CorrectCompassNorth'):
-            async_modbus_task = asyncio.ensure_future(self.modbus_wrapper.correct_compass_north())
-            await async_modbus_task # Wait for the future
-            return async_modbus_task.result() # ['CompassNorthCorrected'] Goes to asyncio_gen_queue
-            
-        if (package_from_tk == 'SaveCompassConfiguration'):
-            async_modbus_task = asyncio.ensure_future(self.modbus_wrapper.save_compass_configuration())
-            await async_modbus_task # Wait for the future
-            return async_modbus_task.result() # ['CompassConfigurationSaved'] Goes to asyncio_gen_queue
-
-        if (package_from_tk == 'ResetCompass'):
-            async_modbus_task = asyncio.ensure_future(self.modbus_wrapper.reset_compass())
-            await async_modbus_task # Wait for the future
-            return async_modbus_task.result() # 'CompassResetCommited' Goes to asyncio_gen_queue
-
-        if (package_from_tk == 'TransactCompassCalStatus'):
+            return async_modbus_task.result() # ['ConnectCalled'] goes to asyncio_tasks_queue
+        
+        if (tk_command == 'GetCompassCalibrationStatus'):
             async_modbus_task = asyncio.ensure_future(self.modbus_wrapper.read_cal_status_from_compass())
             await async_modbus_task # Wait for the future
-            return async_modbus_task.result() # 'CompassCalStatusTransactionCommited' Goes to asyncio_gen_queue
+            return async_modbus_task.result() # 'CompassCalibrationStatusGot' Goes to asyncio_tasks_queue
             
-        if (package_from_tk == 'StartSensors'):
-            return ['StartSensorsClicked'] # goes to asyncio_gen_queue 
+        # Compass configuration buttons
+        
+        if (tk_command == 'StartCompassCalibration'):
+            async_modbus_task = asyncio.ensure_future(self.modbus_wrapper.start_compass_calibration())
+            await async_modbus_task # Wait for the future
+            return async_modbus_task.result() # ['CompassCalibrationStarted'] Goes to asyncio_tasks_queue
+            
+        if (tk_command == 'StopCompassCalibration'):
+            async_modbus_task = asyncio.ensure_future(self.modbus_wrapper.stop_compass_calibration())
+            await async_modbus_task # Wait for the future
+            return async_modbus_task.result() # ['CompassCalibrationStoped'] Goes to asyncio_tasks_queue
+            
+        if (tk_command == 'CorrectCompassNorth'):
+            async_modbus_task = asyncio.ensure_future(self.modbus_wrapper.correct_compass_north())
+            await async_modbus_task # Wait for the future
+            return async_modbus_task.result() # ['CompassNorthCorrected'] Goes to asyncio_tasks_queue
+            
+        if (tk_command == 'SaveCompassConfiguration'):
+            async_modbus_task = asyncio.ensure_future(self.modbus_wrapper.save_compass_configuration())
+            await async_modbus_task # Wait for the future
+            return async_modbus_task.result() # ['CompassConfigurationSaved'] Goes to asyncio_tasks_queue
 
-        if (package_from_tk == 'TransactPressure'):
+        if (tk_command == 'ResetCompass'):
+            async_modbus_task = asyncio.ensure_future(self.modbus_wrapper.reset_compass())
+            await async_modbus_task # Wait for the future
+            return async_modbus_task.result() # 'CompassResetCommited' Goes to asyncio_tasks_queue
+         
+        # Sensors transaction sequence
+         
+        if (tk_command == 'StartSensors'):
+            return ['StartSensorsClicked'] # goes to asyncio_tasks_queue 
+
+        if (tk_command == 'TransactPressure'):
             async_modbus_task = asyncio.ensure_future(self.modbus_wrapper.transact_pressure_sensor())
             await async_modbus_task # Wait for the future
-            return async_modbus_task.result() # ['PressureTransactionCommited', registers] Goes to asyncio_gen_queue
+            return async_modbus_task.result() # ['PressureTransacted', registers] Goes to asyncio_tasks_queue            
             
-            
-        if (package_from_tk == 'TransactCompassTempr'):
+        if (tk_command == 'TransactCompassTempr'):
             async_modbus_task = asyncio.ensure_future(self.modbus_wrapper.read_temperature_from_compass_sensor())
             await async_modbus_task # Wait for the future
-            return async_modbus_task.result() # 'CompassTemprTransactionCommited' Goes to asyncio_gen_queue
+            return async_modbus_task.result() # 'CompassTemprTransacted' Goes to asyncio_tasks_queue
             
-        if (package_from_tk == 'TransactCompassPitchHeading'):
+        if (tk_command == 'TransactCompassPitchHeading'):
             async_modbus_task = asyncio.ensure_future(self.modbus_wrapper.read_pitch_heading_from_compass_sensor())
             await async_modbus_task # Wait for the future
-            return async_modbus_task.result() # 'CompassPitchHeadingTransactionCommited' Goes to asyncio_gen_queue
-
-        if (package_from_tk == 'StopSensors'):        
-            return ['StopSensorsClicked'] # Goes to asyncio_gen_queue 
-
-        if (package_from_tk == 'Light1 ON'):
-            async_modbus_task = asyncio.ensure_future(self.modbus_wrapper.turn_light1_on())
-            await async_modbus_task # Wait for the future
-            return async_modbus_task.result() # ['Light1TurnedON'] goes to asyncio_gen_queue 
-        
-        if (package_from_tk == 'Light1 OFF'):
-            async_modbus_task = asyncio.ensure_future(self.modbus_wrapper.turn_light1_off())
-            await async_modbus_task # Wait for the future
-            return async_modbus_task.result() # ['Light1TurnedOFF'] goes to asyncio_gen_queue 
-
-        if (package_from_tk == 'Light2 ON'):
-            async_modbus_task = asyncio.ensure_future(self.modbus_wrapper.turn_light2_on())
-            await async_modbus_task # Wait for the future
-            return async_modbus_task.result() # ['Light2TurnedON'] goes to asyncio_gen_queue 
-        
-        if (package_from_tk == 'Light2 OFF'):
-            async_modbus_task = asyncio.ensure_future(self.modbus_wrapper.turn_light2_off())
-            await async_modbus_task # Wait for the future
-            return async_modbus_task.result() # ['Light2TurnedOFF'] goes to asyncio_gen_queue 
+            return async_modbus_task.result() # 'CompassPitchHeadTransacted' Goes to asyncio_tasks_queue
             
-        if (package_from_tk == 'Light3 ON'):
-            async_modbus_task = asyncio.ensure_future(self.modbus_wrapper.turn_light3_on())
-            await async_modbus_task # Wait for the future
-            return async_modbus_task.result() # ['Light3TurnedON'] goes to asyncio_gen_queue 
-        
-        if (package_from_tk == 'Light3 OFF'):
-            async_modbus_task = asyncio.ensure_future(self.modbus_wrapper.turn_light3_off())
-            await async_modbus_task # Wait for the future
-            return async_modbus_task.result() # ['Light3TurnedOFF'] goes to asyncio_gen_queue
-            
-        if (package_from_tk == 'Light4 ON'):
-            async_modbus_task = asyncio.ensure_future(self.modbus_wrapper.turn_light4_on())
-            await async_modbus_task # Wait for the future
-            return async_modbus_task.result() # ['Light4TurnedON'] goes to asyncio_gen_queue 
-        
-        if (package_from_tk == 'Light4 OFF'):
-            async_modbus_task = asyncio.ensure_future(self.modbus_wrapper.turn_light4_off())
-            await async_modbus_task # Wait for the future
-            return async_modbus_task.result() # ['Light4TurnedOFF'] goes to asyncio_gen_queue 
-
-
-        if (package_from_tk == 'WaitNextIteration'):
+        if (tk_command == 'WaitForNextIteration'):
             async_modbus_task = asyncio.ensure_future(self.modbus_wrapper.wait_next_iteration())
             await async_modbus_task # Wait for the future
-            return async_modbus_task.result() # 'WaitedForNexIter' goes to asyncio_gen_queue 
+            return async_modbus_task.result() # 'NexIterationWaited' goes to asyncio_tasks_queue 
 
-        if (package_from_tk == 'Disconnect'):
+        if (tk_command == 'StopSensors'):        
+            return ['StopSensorsClicked'] # Goes to asyncio_tasks_queue 
+            
+        # Light buttons
+
+        if (tk_command == 'Light1 ON'):
+            async_modbus_task = asyncio.ensure_future(self.modbus_wrapper.turn_light1_on())
+            await async_modbus_task # Wait for the future
+            return async_modbus_task.result() # ['Light1TurnedON'] goes to asyncio_tasks_queue 
+        
+        if (tk_command == 'Light1 OFF'):
+            async_modbus_task = asyncio.ensure_future(self.modbus_wrapper.turn_light1_off())
+            await async_modbus_task # Wait for the future
+            return async_modbus_task.result() # ['Light1TurnedOFF'] goes to asyncio_tasks_queue 
+
+        if (tk_command == 'Light2 ON'):
+            async_modbus_task = asyncio.ensure_future(self.modbus_wrapper.turn_light2_on())
+            await async_modbus_task # Wait for the future
+            return async_modbus_task.result() # ['Light2TurnedON'] goes to asyncio_tasks_queue 
+        
+        if (tk_command == 'Light2 OFF'):
+            async_modbus_task = asyncio.ensure_future(self.modbus_wrapper.turn_light2_off())
+            await async_modbus_task # Wait for the future
+            return async_modbus_task.result() # ['Light2TurnedOFF'] goes to asyncio_tasks_queue 
+            
+        if (tk_command == 'Light3 ON'):
+            async_modbus_task = asyncio.ensure_future(self.modbus_wrapper.turn_light3_on())
+            await async_modbus_task # Wait for the future
+            return async_modbus_task.result() # ['Light3TurnedON'] goes to asyncio_tasks_queue 
+        
+        if (tk_command == 'Light3 OFF'):
+            async_modbus_task = asyncio.ensure_future(self.modbus_wrapper.turn_light3_off())
+            await async_modbus_task # Wait for the future
+            return async_modbus_task.result() # ['Light3TurnedOFF'] goes to asyncio_tasks_queue
+            
+        if (tk_command == 'Light4 ON'):
+            async_modbus_task = asyncio.ensure_future(self.modbus_wrapper.turn_light4_on())
+            await async_modbus_task # Wait for the future
+            return async_modbus_task.result() # ['Light4TurnedON'] goes to asyncio_tasks_queue 
+        
+        if (tk_command == 'Light4 OFF'):
+            async_modbus_task = asyncio.ensure_future(self.modbus_wrapper.turn_light4_off())
+            await async_modbus_task # Wait for the future
+            return async_modbus_task.result() # ['Light4TurnedOFF'] goes to asyncio_tasks_queue 
+
+        # Disconnect
+
+        if (tk_command == 'Disconnect'):
             async_modbus_task = asyncio.ensure_future(self.modbus_wrapper.close_client())
             await async_modbus_task # Wait for the future
-            return async_modbus_task.result() # 'ConnectionClosed' goes to asyncio_gen_queue            
+            return async_modbus_task.result() # 'Disconnected' goes to asyncio_tasks_queue
         
-        return ['WaitingForConnection'] # Goes to asyncio_gen_queue if package_from_tk is unknown
+        return ['WaitingForConnection'] # Goes to asyncio_tasks_queue if tk_command is unknown
         
-    def handle_package_in_tk_loop(self, package_from_asyncio):
-        #timed_msg('A package from Asyncio: "' + package_from_asyncio[0] + '" is in Tkinter')
+    def handle_task_in_tk_loop(self, asyncio_task):
+        timed_msg('-TK: Got and handling an Asyncio task "' + asyncio_task[0] + '"')
         
-        if (package_from_asyncio[0] == 'ConnectCalled'):
+        # Connect button
+        
+        # Handle an Asincio's thread answer to Tkinter command 'Connect'
+        if (asyncio_task[0] == 'ConnectCalled'):
             if (self.modbus_wrapper.connection_status == 'Connected'):                                  
-                self.switch_on_connect()
+                self.switch_on_connect()                
+                return 'GetCompassCalibrationStatus' # Goes to tk_commands_queue
             else:                
-               self.switch_on_disconnect()
-            return 'Idle' # Goes to tk_gen_queue
+                self.switch_on_disconnect()
+                return 'Idle' # Goes to tk_commands_queue
+                
+        # Handle an Asincio's thread answer to Tkinter command 'GetCompassCalibrationStatus'
+        if (asyncio_task[0] == 'CompassCalibrationStatusGot'):
+            self.CalStatus_val.set(str(asyncio_task[1])[:4])
+            self.modbus_log_text.insert('end', 'CalStatus: ' + str(asyncio_task[1]) + '\n')
+            self.modbus_log_text.yview('end')
+            return 'Idle' # Goes to tk_commands_queue
 
-        if (package_from_asyncio[0] == 'CalibratingCompassStarted'):
-            self.switch_on_start_calibrating_compass()
-            return 'Idle' # Goes to tk_gen_queue
-            
-        if (package_from_asyncio[0] == 'CalibratingCompassStoped'):
-            self.switch_on_stop_calibrating_compass()
-            return 'Idle' # Goes to tk_gen_queue   
-            
-        if (package_from_asyncio[0] == 'CompassNorthCorrected'):
-            self.switch_on_compass_north_corrected()
-            return 'Idle' # Goes to tk_gen_queue
-            
-        if (package_from_asyncio[0] == 'CompassConfigurationSaved'):
-            self.switch_on_compass_configuration_saved()
-            return 'Idle' # Goes to tk_gen_queue
+        # Compass configuration buttons
 
-        if (package_from_asyncio[0] == 'CompassResetCommited'):
-            self.switch_on_compass_reset_commited()
-            return 'Idle' # Goes to tk_gen_queue
+        # Handle an Asincio's thread answer to Tkinter command 'StartCompassCalibration'
+        if (asyncio_task[0] == 'CompassCalibrationStarted'):
+            self.switch_on_start_compass_calibration()
+            return 'GetCompassCalibrationStatus' # Goes to tk_commands_queue
+            
+        # Handle an Asincio's thread answer to Tkinter command 'StopCompassCalibration'
+        if (asyncio_task[0] == 'CompassCalibrationStoped'):
+            self.switch_on_stop_compass_calibration()
+            return 'GetCompassCalibrationStatus' # Goes to tk_commands_queue   
+            
+        # Handle an Asincio's thread answer to Tkinter command 'CorrectCompassNorth'
+        if (asyncio_task[0] == 'CompassNorthCorrected'):
+            return 'GetCompassCalibrationStatus' # Goes to tk_commands_queue
+            
+        # Handle an Asincio's thread answer to Tkinter command 'SaveCompassConfiguration'
+        if (asyncio_task[0] == 'CompassConfigurationSaved'):
+            return 'GetCompassCalibrationStatus' # Goes to tk_commands_queue
 
-        if (package_from_asyncio[0] == 'StartSensorsClicked'):
+        # Handle an Asincio's thread answer to Tkinter command 'ResetCompass'
+        if (asyncio_task[0] == 'CompassResetCommited'):
+            return 'GetCompassCalibrationStatus' # Goes to tk_commands_queue
+
+        # Sensors transaction sequence
+
+        # Handle an Asincio's thread answer to Tkinter command 'StartSensors'
+        if (asyncio_task[0] == 'StartSensorsClicked'):
             self.switch_on_start_sensors()
-            return 'TransactPressure' # Goes to tk_gen_queue
+            return 'TransactPressure' # Goes to tk_commands_queue
+
+        # Handle an Asincio's thread answer to Tkinter command 'TransactPressure'
+        if (asyncio_task[0] == 'PressureTransacted'):
+            self.pressure_sensor_val.set(str(asyncio_task[1])[:4])
+            self.modbus_log_text.insert('end', 'Pressure: ' + str(asyncio_task[1]) + '\n')
+            self.modbus_log_text.yview('end')
+            return 'TransactCompassTempr' # Goes to tk_commands_queue
+
+        # Handle an Asincio's thread answer to Tkinter command 'TransactCompassTempr'
+        if (asyncio_task[0] == 'CompassTemprTransacted'):
+            self.Tempr_val.set(str(asyncio_task[1])[:4])
+            self.modbus_log_text.insert('end', 'Temperature: ' + str(asyncio_task[1]) + '\n')
+            self.modbus_log_text.yview('end')
+            return 'TransactCompassPitchHeading' # Goes to tk_commands_queue
+
+        # Handle an Asincio's thread answer to Tkinter command 'TransactCompassPitchHeading'
+        if (asyncio_task[0] == 'CompassPitchHeadTransacted'):
+            self.Pitch_val.set(str(asyncio_task[1])[:4])
+            self.Heading_val.set(str(asyncio_task[2])[:4])
+            self.modbus_log_text.insert('end', 'Pitch: ' + str(asyncio_task[1]) + '\n') 
+            self.modbus_log_text.insert('end', 'Heading: ' + str(asyncio_task[2]) + '\n')
+            self.modbus_log_text.yview('end')
+            return 'WaitForNextIteration' # Goes to tk_commands_queue
             
-        if (package_from_asyncio[0] == 'StopSensorsClicked'):
+        # Handle an Asincio's thread answer to Tkinter command 'WaitForNextIteration'
+        if (asyncio_task[0] == 'NexIterationWaited'):        
+            return 'TransactPressure' # Goes to tk_commands_queue
+            
+        # Handle an Asincio's thread answer to Tkinter command 'StopSensors'
+        if (asyncio_task[0] == 'StopSensorsClicked'):
             self.switch_on_stop_sensors()
-            return 'Idle' # Goes to tk_gen_queue            
+            return 'Idle' # Goes to tk_commands_queue  
 
-        if (package_from_asyncio[0] == 'PressureTransactionCommited'):
-            self.pressure_sensor_val.set(str(package_from_asyncio[1])[:4])
-            self.modbus_log_text.insert('end', 'Pressure: ' + str(package_from_asyncio[1]) + '\n')
-            self.modbus_log_text.yview('end')
-            return 'TransactCompassTempr' #'TransactCompassCalStatus' # Goes to tk_gen_queue
+        # Disconnect
 
-        if (package_from_asyncio[0] == 'CompassCalStatusTransactionCommited'):
-            self.CalStatus_val.set(str(package_from_asyncio[1])[:4])
-            self.modbus_log_text.insert('end', 'CalStatus: ' + str(package_from_asyncio[1]) + '\n')
-            self.modbus_log_text.yview('end')
-            return 'TransactCompassTempr' # Goes to tk_gen_queue
-            
-        if (package_from_asyncio[0] == 'CompassTemprTransactionCommited'):
-            self.Tempr_val.set(str(package_from_asyncio[1])[:4])
-            self.modbus_log_text.insert('end', 'Temperature: ' + str(package_from_asyncio[1]) + '\n')
-            self.modbus_log_text.yview('end')
-            return 'TransactCompassPitchHeading' # Goes to tk_gen_queue
-            
-        if (package_from_asyncio[0] == 'CompassPitchHeadingTransactionCommited'):
-            self.Pitch_val.set(str(package_from_asyncio[1])[:4])
-            self.Heading_val.set(str(package_from_asyncio[2])[:4])
-            self.modbus_log_text.insert('end', 'Pitch: ' + str(package_from_asyncio[1]) + '\n') 
-            self.modbus_log_text.insert('end', 'Heading: ' + str(package_from_asyncio[2]) + '\n')
-            self.modbus_log_text.yview('end')
-            return 'WaitNextIteration' # Goes to tk_gen_queue
-            
-        if (package_from_asyncio[0] == 'WaitedForNexIter'):        
-            return 'TransactPressure' # Goes to tk_gen_queue
-            
-        if (package_from_asyncio[0] == 'ConnectionClosed'):
+        # Handle an Asincio's thread answer to Tkinter command 'Disconnect'
+        if (asyncio_task[0] == 'Disconnected'):
             self.switch_on_disconnect()
-            return 'Idle' # Goes to tk_gen_queue   
- 
-        return 'Idle' # Goes to tk_gen_queue if package_from_asyncio is unknown
+            return 'Idle' # Goes to tk_commands_queue  
+
+        return 'Idle' # Goes to tk_commands_queue if asyncio_task is unknown
 
     # Put pressure sensor label on the form
     def display_pressure_sensor(self):
@@ -571,41 +627,41 @@ class GUI:
         if self.light1_button.config('relief')[-1] == 'sunken':
             self.light1_button.config(relief="raised")
             self.light1_button.config(text="Light1 OFF")
-            self.put_package_from_tk_to_queue('Light1 OFF', self.mainframe)
+            self.put_tk_command_to_queue('Light1 OFF', self.mainframe)
         else:
             self.light1_button.config(relief="sunken")
             self.light1_button.config(text="Light1 ON")
-            self.put_package_from_tk_to_queue('Light1 ON', self.mainframe) 
+            self.put_tk_command_to_queue('Light1 ON', self.mainframe) 
 
     def on_light2(self):
         if self.light2_button.config('relief')[-1] == 'sunken':
             self.light2_button.config(relief="raised")
             self.light2_button.config(text="Light2 OFF")
-            self.put_package_from_tk_to_queue('Light2 OFF', self.mainframe)
+            self.put_tk_command_to_queue('Light2 OFF', self.mainframe)
         else:
             self.light2_button.config(relief="sunken")
             self.light2_button.config(text="Light2 ON")
-            self.put_package_from_tk_to_queue('Light2 ON', self.mainframe) 
+            self.put_tk_command_to_queue('Light2 ON', self.mainframe) 
 
     def on_light3(self):
         if self.light3_button.config('relief')[-1] == 'sunken':
             self.light3_button.config(relief="raised")
             self.light3_button.config(text="Light3 OFF")
-            self.put_package_from_tk_to_queue('Light3 OFF', self.mainframe)
+            self.put_tk_command_to_queue('Light3 OFF', self.mainframe)
         else:
             self.light3_button.config(relief="sunken")
             self.light3_button.config(text="Light3 ON")
-            self.put_package_from_tk_to_queue('Light3 ON', self.mainframe) 
+            self.put_tk_command_to_queue('Light3 ON', self.mainframe) 
 
     def on_light4(self):
         if self.light4_button.config('relief')[-1] == 'sunken':
             self.light4_button.config(relief="raised")
             self.light4_button.config(text="Light4 OFF")
-            self.put_package_from_tk_to_queue('Light4 OFF', self.mainframe)
+            self.put_tk_command_to_queue('Light4 OFF', self.mainframe)
         else:
             self.light4_button.config(relief="sunken")
             self.light4_button.config(text="Light4 ON")
-            self.put_package_from_tk_to_queue('Light4 ON', self.mainframe) 
+            self.put_tk_command_to_queue('Light4 ON', self.mainframe) 
 
     # Put "Modbus command" Entry box on the form
     def display_modbus_command_entry_box(self):
@@ -626,8 +682,9 @@ class GUI:
     def on_modbus_command_enter_pressed(self, event):
         # Send a command to the modbus async client
         data = self.modbus_command_entry.get().strip()
-        message = bytearray.fromhex(data)        
-        asyncio.run(self.modbus_wrapper.send_modbus_command(message), debug=True)
+        #message = bytearray.fromhex(data)        
+        #asyncio.run(self.modbus_wrapper.send_modbus_command(message), debug=True)
+        timed_msg('Function not implemented. Message: "' + data + '"')
         
         return 'break'
 
@@ -655,4 +712,4 @@ class GUI:
         
         # Print timestamped messsage    
 def timed_msg(msg: str):
-    print(datetime.datetime.now().strftime('%M:%S.%f')[:-3], msg)
+    print(datetime.datetime.now().strftime('%H:%M:%S.%f')[:-3], msg)

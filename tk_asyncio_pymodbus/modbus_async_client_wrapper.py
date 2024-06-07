@@ -20,8 +20,7 @@ pymodbus_apply_logging_config("DEBUG")
 class ModbusAsyncClientWrapper():
     
     # Constructor
-    def __init__(self, time_between_transactions, timeout, comm, host, port, framer): # comm='tcp', framer='rtu' for sensors
-        #self.modbus_transaction_callback = modbus_transaction_callback
+    def __init__(self, delay_after_chain_of_commands, timeout, comm, host, port, framer): # comm='tcp', framer='rtu' for sensors
         self.comm = comm
         self.host = host
         self.port = port
@@ -30,7 +29,7 @@ class ModbusAsyncClientWrapper():
         # Available statuses: 'Connected', 'Disconnected'
         self.connection_status = 'Disconnected'
         # Time interval for messaging the server
-        self.time_between_transactions = time_between_transactions # sec
+        self.delay_after_chain_of_commands = delay_after_chain_of_commands # sec
         self.timeout = timeout
         
         # Resource lock for multithreading
@@ -148,18 +147,18 @@ class ModbusAsyncClientWrapper():
             self.async_client.close()
         self.connection_status = 'Disconnected'
         print("### Connection to the server closed" )
-        return ['ConnectionClosed']
+        return ['Disconnected']
 
 
 
     async def wait_next_iteration(self):
         loop = asyncio.get_running_loop()    
         cur_time = loop.time()
-        next_call_time = cur_time + self.time_between_transactions
+        next_call_time = cur_time + self.delay_after_chain_of_commands
         if (cur_time > next_call_time):
             next_call_time = cur_time
         await asyncio.sleep(next_call_time - cur_time)
-        return ['WaitedForNexIter']
+        return ['NexIterationWaited']
             
             
     # Start listening asynchronously the pressure sensor PTM RS-485
@@ -279,21 +278,21 @@ class ModbusAsyncClientWrapper():
         
         if (not registers):
             timed_msg('No values for pressure sensor...')
-            return ['PressureTransactionCommited', 0]
+            return ['PressureTransacted', 0]
         else:
             # Convert to meters by multipliyng on 0.16315456
-            return ['PressureTransactionCommited', convert_uint(registers[0]) * 0.16315456]
+            return ['PressureTransacted', convert_uint(registers[0]) * 0.16315456]
 
 
-    async def start_calibrating_compass(self):
-        # Write  CalStatus = 1 (to start calibrating)
+    async def start_compass_calibration(self):
+        # Write  CalStatus = 1 (to start calibration)
         registers = await self.modbus_transaction(slave = 0x0A, function = 6, address = 0, count_val = 1)
-        return ['CalibratingCompassStarted']
+        return ['CompassCalibrationStarted']
         
-    async def stop_calibrating_compass(self):                
-        # Write  CalStatus = 3 (to stop calibrating)
+    async def stop_compass_calibration(self):                
+        # Write  CalStatus = 3 (to stop calibration)
         registers = await  self.modbus_transaction(slave = 0x0A, function = 6, address = 0, count_val = 3)
-        return ['CalibratingCompassStoped']
+        return ['CompassCalibrationStoped']
 
     async def correct_compass_north(self):
         # Write  CalStatus = 5 (current direction will be set as north)
@@ -311,14 +310,17 @@ class ModbusAsyncClientWrapper():
         return ['CompassResetCommited']
         
     async def read_cal_status_from_compass(self):
+        # If CalStatus = 0 then it is usual working mode
+        # If CalStatus = 2 then the process of calibration is going on
+    
         # Read CalStatus 
         registers = await self.modbus_transaction(slave = 0x0A, function = 3, address = 0, count_val = 1)
         # If some error
         if (not registers):
             timed_msg('No values for compass cal status...')
-            return ['CompassCalStatusTransactionCommited', 0]
+            return ['CompassCalibrationStatusGot', 0]
         else:
-            return ['CompassCalStatusTransactionCommited', registers[0]]
+            return ['CompassCalibrationStatusGot', registers[0]]
         
     async def read_temperature_from_compass_sensor(self):
         # Read Tempr
@@ -326,10 +328,10 @@ class ModbusAsyncClientWrapper():
         
         if (not registers):
             timed_msg('No values for compass tempr...')
-            return ['CompassTemprTransactionCommited', 0]
+            return ['CompassTemprTransacted', 0]
         else:
             # Temperature should be divided by 8
-            return ['CompassTemprTransactionCommited', registers[0]/8]
+            return ['CompassTemprTransacted', registers[0]/8]
         
     async def read_pitch_heading_from_compass_sensor(self):
         #Read Pitch (GL_Teta) and Heading (GL_Phi)
@@ -337,7 +339,7 @@ class ModbusAsyncClientWrapper():
         
         if (not registers):
             timed_msg('No values for pithch, heading...')
-            return ['CompassPitchHeadingTransactionCommited', 0, 0]
+            return ['CompassPitchHeadTransacted', 0, 0]
         else:
             # Pack two integers in standard 
             # '>HH' big-endian, 2-byte integer, 2-byte integer
@@ -349,7 +351,7 @@ class ModbusAsyncClientWrapper():
             floatHeading_bytes = struct.pack('>HH', registers[3], registers[2])
             floatHeading = struct.unpack('>f', floatHeading_bytes)[0]
             
-            return ['CompassPitchHeadingTransactionCommited', floatPitch, floatHeading]
+            return ['CompassPitchHeadTransacted', floatPitch, floatHeading]
         
         
 def convert_uint(x):
@@ -359,4 +361,4 @@ def convert_uint(x):
     
 # Print timestamped messsage    
 def timed_msg(msg: str):
-    print(datetime.datetime.now().strftime('%M:%S.%f')[:-3], msg)
+    print(datetime.datetime.now().strftime('%H:%M:%S.%f')[:-3], msg)
