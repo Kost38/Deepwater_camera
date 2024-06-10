@@ -2,19 +2,32 @@
 #import sys, os
 from datetime import datetime
 import time
-#import gi
-# gi.require_version('Gst', '1.0')
-# gi.require_version('GstVideo', '1.0')
-# from gi.repository import Gst
-# from gi.repository import GObject, GstVideo
+import gi
+gi.require_version('Gst', '1.0')
+gi.require_version('GstVideo', '1.0')
+from gi.repository import Gst
+from gi.repository import GObject, GstVideo
 
-class VideoPlayer():
+class Student:
+    # конструктор
+    def __init__(self, name):
+        print('Inside Constructor')
+        self.name = name
+        print('Object initialized')
+    def show(self):
+        print('Hello, my name is', self.name)
+    # деструктор
+    def __del__(self):
+        print('Inside destructor')
+        print('Object destroyed')
+
+class VideoPlayer:
 
     def __init__(self, frame_id):
         print('Starting video...')
         self.recording = False
         # For now
-        return
+        # return
         
         Gst.init(None)
         Gst.debug_set_active(True)
@@ -22,7 +35,7 @@ class VideoPlayer():
 
         GObject.threads_init()
 
-        player = Gst.ElementFactory.make('playbin', None)
+#        player = Gst.ElementFactory.make('playbin', None)
 
         #filepath = sys.argv[1]   #os.path.realpath('kbps.mp4')
         #filepath2 = "file:///" + filepath.replace('\\', '/').replace(':', '|')
@@ -37,12 +50,14 @@ class VideoPlayer():
         # self.pipeline = Gst.parse_launch('rtspsrc protocols=tcp location=rtsp://root:12345@192.168.0.123/stream0 ! application/x-rtp, media=video ! rtpjitterbuffer ! rtph264depay ! tee name=tee ! avdec_h264 ! videocrop left=240 right=240 ! autovideosink')
         # self.pipeline = Gst.parse_launch('rtspsrc protocols=tcp location=rtsp://root:12345@10.1.10.80/stream=0 ! application/x-rtp, media=video ! rtpjitterbuffer ! rtph265depay ! tee name=tee ! avdec_h265 ! videocrop left=240 right=240 ! autovideosink')
         self.pipeline = Gst.parse_launch(
-            "udpsrc port=5600 ! application/x-rtp, media=video ! rtpjitterbuffer ! rtph265depay ! tee name=tee ! avdec_h265 ! videocrop left=240 right=240 ! autovideosink")
+#            "udpsrc port=5600 ! application/x-rtp, media=video ! rtpjitterbuffer ! rtph265depay ! tee name=tee ! avdec_h265 ! videocrop left=240 right=240 ! autovideosink")
+            "udpsrc port=5600 ! application/x-rtp, media=video ! rtpjitterbuffer ! rtph265depay ! tee name=tee ! avdec_h265 ! videocrop left=240 right=240 ! glimagesink")
+
 
         bus = self.pipeline.get_bus()
         bus.add_signal_watch()
-        bus.connect('message::eos', self.on_eos)
-        bus.connect('message::error', self.on_error)
+#        bus.connect('message::eos', self.on_eos)
+#        bus.connect('message::error', self.on_error)
         bus.enable_sync_message_emission()
         bus.connect('sync-message::element', self.set_frame_handle, frame_id)
         
@@ -61,7 +76,7 @@ class VideoPlayer():
 
     def set_frame_handle(self, bus, message, frame_id):
         if not message.get_structure() is None:
-            print(message.get_structure().get_name())
+#            print(message.get_structure().get_name())
             if message.get_structure().get_name() == 'prepare-window-handle':
                 display_frame = message.src
                 display_frame.set_property('force-aspect-ratio', True)
@@ -74,8 +89,8 @@ class VideoPlayer():
         print(filename)
         self.recording = True
         
-        return
-        self.recordpipe = Gst.parse_bin_from_description("queue name=filequeue ! h265parse ! matroskamux ! filesink location=" + filename, True)
+
+        self.recordpipe = Gst.parse_bin_from_description("queue name=filequeue ! h265parse ! mp4mux ! filesink location=" + filename, True)
         self.pipeline.add(self.recordpipe)
         #self.recordpipe = Gst.parse_launch("queue name=filequeue ! h264parse ! mp4mux ! filesink location=" + filename)
         self.pipeline.get_by_name("tee").link(self.recordpipe)
@@ -85,7 +100,7 @@ class VideoPlayer():
         print("Stop record")
         
         self.recording = False
-        return
+
         #self.filequeue = self.recordpipe.get_by_name("filequeue")
         #self.filequeue.get_static_pad("src").add_probe(Gst.PadProbeType.BLOCK_DOWNSTREAM, self.probe_block)
         self.pipeline.get_by_name("tee").unlink(self.recordpipe)
@@ -96,7 +111,17 @@ class VideoPlayer():
         print("Blocked")
         return True
         
-    def __del__(self):
+    def stop_video(self):
         if (self.recording):
             self.stop_record()
-        print("Closing video...")
+        self.pipeline.send_event(Gst.Event.new_eos())
+        print("Stopping video...")        
+
+    def __del__(self):
+        print('Inside destructor')
+        print('Object destroyed')
+
+#    def __del__(self):
+#        if (self.recording):
+#            self.stop_record()
+#        print("Closing video...")
