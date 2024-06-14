@@ -93,8 +93,11 @@ class GUI:
         else:
             if (self.videoPlayer.recording):
                 self.video_record_button.config(text="Record")
-                self.video_record_button.config(relief="raised")                
-            self.videoPlayer = None
+                self.video_record_button.config(relief="raised")
+                
+            self.videoPlayer.stop_video()    
+            #del self.videoPlayer
+            
             self.video_start_button.config(text="Start video")
             self.video_start_button.config(relief="raised")
             self.video_record_button.config(state='disabled')
@@ -159,12 +162,7 @@ class GUI:
         self.save_compass_configuration_button.pack(side='left', padx=3, pady=3)
         self.save_compass_configuration_button.config(state='disabled') 
         
-        # Reset Button
-        self.reset_compass_button = Button(
-            self.frame_buttons, text="Reset", font=("arial", 10, "bold"), command=self.on_reset_compass)
-        self.reset_compass_button.pack(side='left', padx=3, pady=3)
-        self.reset_compass_button.config(state='disabled') 
-        
+       
         # Frame
         self.frame_buttons = Frame(self.frame_right)
         self.frame_buttons.pack(side='top', anchor='nw', ipadx=5, ipady=3) # Connect Section frame.pack()
@@ -172,8 +170,20 @@ class GUI:
         # Start transacting with sensors Button
         self.start_sensors_button = Button(
             self.frame_buttons, text="Start sensors", font=("arial", 10, "bold"), command=self.on_start_sensors)
-        self.start_sensors_button.pack(side='right', padx=3, pady=3)
+        self.start_sensors_button.pack(side='left', padx=3, pady=3)
         self.start_sensors_button.config(state='disabled') 
+        
+        # Reset Button
+        self.reset_compass_button = Button(
+            self.frame_buttons, text="Reset", font=("arial", 10, "bold"), command=self.on_reset_compass)
+        self.reset_compass_button.pack(side='right', padx=10, pady=3)
+        self.reset_compass_button.config(state='disabled') 
+        
+        # Get CalStatus Button
+        self.reset_compass_button = Button(
+            self.frame_buttons, text="Get CalStatus", font=("arial", 10, "bold"), command=self.on_get_compass_calibration_status)
+        self.reset_compass_button.pack(side='right', padx=3, pady=3)
+        self.reset_compass_button.config(state='disabled') 
 
 
     # Create a modbus async client wrapper and connect to the server
@@ -316,6 +326,10 @@ class GUI:
     # Handle "Reset compass" button click
     def on_reset_compass(self): 
         self.put_tk_command_to_queue('ResetCompass', self.mainframe)
+        
+    # Handle "Reset Get CalStatus" button click
+    def on_get_compass_calibration_status(self):
+        self.put_tk_command_to_queue('GetCompassCalibrationStatus', self.mainframe)
 
     async def handle_command_in_asyncio_loop(self, tk_command):  
         timed_msg('-AIO: Got and handling a Tkinter command "' + tk_command + '"')

@@ -40,7 +40,7 @@ min_time_between_commands =  0.1 # sec
 delay_after_chain_of_commands = 0.2 # sec
 
 # Timeout of connection and sending packets for Async Modbus Client
-modbus_timeout = 0.1
+modbus_timeout = 0.2
 
 
 #----------
@@ -54,8 +54,8 @@ port_addr = "4001"
 #host_ip = "84.237.21.184" # old, external
 #port_addr = "4001"
 # Localhost
-host_ip = "127.0.0.1"
-port_addr = 10319
+#host_ip = "127.0.0.1"
+#port_addr = 10319
 
 
 #----------
