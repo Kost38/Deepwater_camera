@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 #import sys, os
-from datetime import datetime
+from datetime import datetime,timedelta
 import time
 import gi
 gi.require_version('Gst', '1.0')
@@ -42,10 +42,13 @@ class VideoPlayer:
 
     def start_record(self):
         print("Starting record...")
-        filename = datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ".mp4"
+        self.start_record_time = datetime.now()
+        filename = self.start_record_time.strftime("%Y-%m-%d_%H-%M-%S")
+        self.log_file = open(filename + ".srt", 'w')
+        self.log_counter = 0
         print(filename)
         self.recording = True
-        self.recordpipe = Gst.parse_bin_from_description("queue name=filequeue ! h265parse ! mp4mux ! filesink location=" + filename, True)
+        self.recordpipe = Gst.parse_bin_from_description("queue name=filequeue ! h265parse ! mp4mux ! filesink location=" + filename + ".mp4", True)
         self.pipeline.add(self.recordpipe)
         self.pipeline.get_by_name("tee").link(self.recordpipe)
         self.recordpipe.set_state(Gst.State.PLAYING)
@@ -53,6 +56,7 @@ class VideoPlayer:
     def stop_record(self):
         print("Stopping record...")
         self.recording = False
+        self.log_file.close()
         self.pipeline.get_by_name("tee").unlink(self.recordpipe)
         self.recordpipe.send_event(Gst.Event.new_eos())
         # while self.bus.have_pending():

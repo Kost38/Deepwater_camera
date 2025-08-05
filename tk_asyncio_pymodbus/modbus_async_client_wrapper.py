@@ -15,7 +15,7 @@ from pymodbus import (
 )
 
 # Turn on logging
-pymodbus_apply_logging_config("DEBUG")
+#pymodbus_apply_logging_config("DEBUG")
 
 class ModbusAsyncClientWrapper():
     
