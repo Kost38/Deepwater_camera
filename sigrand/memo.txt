@@ -1,0 +1,25 @@
+For 2000m 6mm cable:
+> cfg
+DSL: master Annex A TCPAM16 sync rate=3072 pbo-normal
+dsl_link: online
+
+For 1000m 9mm cable:
+> cfg
+DSL: master Annex A TCPAM32 sync rate=6144 pbo-normal
+dsl_link: online
+
+
+
+
+
+
+
+
+> info
+Sigrand SG-17BT v. 1.0
+Firmware MC: SG-17BT v.2.1
+Firmware IDC: v1.1_1.4.18
+Firmware SDFE: v11.160.001
+Firmware IAP: v1.0 UART
+> 
+

@@ -25,3 +25,14 @@ Modbus adress table:
 ![1.7mm](/cam/1.7mm.png)
 ![2.5mm](/cam/2.5mm.png)
 ![5mm](/cam/5mm.png)
+
+ssh root@10.1.10.80 12345 camera
+ssh root@10.0.10.165 router
+10.0.10.167:4001 moxa
+
+# tc qdisc fq_codel 0: dev eth0 root refcnt 2 limit 10240p flows 1024 quantum 1514 target 5.0ms interval 100.0ms memory_limit 4Mb ecn
+# tc qdisc add dev eth0 root tbf rate 4000kbit peakrate 4020kbit mtu 1400 latency 1000ms buffer 8192
+# tc qdisc add dev eth0 root tbf rate 3000kbit peakrate 3020kbit mtu 1400 latency 1000ms buffer 8192
+
+
+
