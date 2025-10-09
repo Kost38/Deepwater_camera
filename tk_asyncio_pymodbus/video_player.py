@@ -67,8 +67,8 @@ class VideoPlayer:
 		srt_subtitle_time = timedelta(microseconds=rounded_milliseconds * 1000)
 		self.log_file.write(str(self.log_counter) + '\n')
 		self.log_file.write(str(self.prev_srt_subtitle_time)[:-3].replace('.' , ',') + ' --> ' + str(srt_subtitle_time)[:-3].replace('.' , ',') + '\n')
-		self.log_file.write('T: ' + now_time.strftime("%Y-%m-%d %H:%M:%S") + ' ')
-		self.log_file.write('D: ' + str(f"{format(depth, '.1f')}") + '\n\n')
+		self.log_file.write('T: ' + self.prev_time.strftime("%Y-%m-%d %H:%M:%S") + ' ')
+		self.log_file.write('D: ' + str(f"{format(self.prev_depth, '.1f')}") + '\n\n')
 		self.log_file.flush()
 		self.prev_time = now_time
 		self.prev_depth = depth
