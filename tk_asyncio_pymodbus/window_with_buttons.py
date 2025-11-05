@@ -279,7 +279,7 @@ class GUI:
 			self.modbus_log_text.insert('end', 'Pressure: ' + str(task_for_tk[1]) + '\n')
 			if(self.videoPlayer and self.videoPlayer.recording):
 				self.modbus_log_text.insert('end', 'Recording...' + '\n')
-				self.videoPlayer.write_subtitle_to_log_file(task_for_tk[1])
+				self.videoPlayer.write_pressure_to_subtitle_file(task_for_tk[1])
 			self.modbus_log_text.yview('end')
 			return 'TransactCompassTempr' # Goes to queue_of_labels_for_asyncio
 

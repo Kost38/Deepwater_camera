@@ -58,7 +58,7 @@ class VideoPlayer:
 		self.pipeline.get_by_name("tee").link(self.recordpipe)
 		self.recordpipe.set_state(Gst.State.PLAYING)
 		
-	def write_subtitle_to_log_file(self, depth):
+	def write_pressure_to_subtitle_file(self, pressure):
 		self.log_counter = self.log_counter + 1
 		now_time = datetime.now()
 		srt_subtitle_time = now_time - self.start_record_time
@@ -71,7 +71,7 @@ class VideoPlayer:
 		self.log_file.write('D: ' + str(f"{format(self.prev_depth, '.1f')}") + '\n\n')
 		self.log_file.flush()
 		self.prev_time = now_time
-		self.prev_depth = depth
+		self.prev_depth = pressure
 		self.prev_srt_subtitle_time = srt_subtitle_time
 		
 	def stop_record(self):

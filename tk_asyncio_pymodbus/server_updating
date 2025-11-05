@@ -1,0 +1,1 @@
+./server_updating.py --host localhost --comm tcp --framer rtu --log debug --port 10319

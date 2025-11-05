@@ -214,49 +214,49 @@ class ModbusAsyncClientWrapper():
 
 
 	async def turn_light1_on(self):
-		# Turn Light1 ON
+		# Turn Light1 ON  (Write coil)
 		registers = await self.modbus_transaction(slave = 0xAA, function = 5, address = 0, count_val = True)
 		#self.send_message(bytearray.fromhex('AA 05 00 00 FF 00'))
 		return ['Light1TurnedON']
 		
 	async def turn_light1_off(self):
-		# Turn Light1 OFF
+		# Turn Light1 OFF (Write coil)
 		registers = await self.modbus_transaction(slave = 0xAA, function = 5, address = 0, count_val = False)
 		#self.send_message(bytearray.fromhex('AA 05 00 00 00 00'))
 		return ['Light1TurnedOFF']
 
 	async def turn_light2_on(self):
-		# Turn Light2 ON
+		# Turn Light2 ON (Write coil)
 		registers = await self.modbus_transaction(slave = 0xAA, function = 5, address = 1, count_val = True)
 		#self.send_message(bytearray.fromhex('AA 05 00 01 FF 00'))
 		return ['Light2TurnedON']
 		
 	async def turn_light2_off(self):
-		# Turn Light2 OFF
+		# Turn Light2 OFF (Write coil)
 		registers = await self.modbus_transaction(slave = 0xAA, function = 5, address = 1, count_val = False)
 		#self.send_message(bytearray.fromhex('AA 05 00 01 00 00'))
 		return ['Light2TurnedOFF']
 		
 	async def turn_light3_on(self):
-		# Turn Light3 ON
+		# Turn Light3 ON (Write coil)
 		registers = await self.modbus_transaction(slave = 0xBB, function = 5, address = 0, count_val = True)
 		#self.send_message(bytearray.fromhex('BB 05 00 00 FF 00'))
 		return ['Light3TurnedON']
 		
 	async def turn_light3_off(self):
-		# Turn Light3 OFF
+		# Turn Light3 OFF (Write coil)
 		registers = await self.modbus_transaction(slave = 0xBB, function = 5, address = 0, count_val = False)
 		#self.send_message(bytearray.fromhex('BB 05 00 00 00 00'))
 		return ['Light3TurnedOFF']
 
 	async def turn_light4_on(self):
-		# Turn Light4 ON
+		# Turn Light4 ON (Write coil)
 		registers = await self.modbus_transaction(slave = 0xBB, function = 5, address = 1, count_val = True)
 		#self.send_message(bytearray.fromhex('BB 05 00 01 FF 00'))
 		return ['Light4TurnedON']
 		
 	async def turn_light4_off(self):
-		# Turn Light4 OFF
+		# Turn Light4 OFF (Write coil)
 		registers = await self.modbus_transaction(slave = 0xBB, function = 5, address = 1, count_val = False)
 		#self.send_message(bytearray.fromhex('BB 05 00 01 00 00'))
 		return ['Light4TurnedOFF']
@@ -264,7 +264,7 @@ class ModbusAsyncClientWrapper():
 		
 
 	async def prepare_pressure_sensor(self): 
-		# Read the serial number of the pressure sensor PTM RS-485
+		# Read the serial number of the pressure sensor PTM RS-485  (Read input register)
 		registers = await self.modbus_transaction(slave = 0xF0, function = 4, address = 7, count_val = 1)		
 		if (not registers):
 			timed_msg('No values for pressure serial number...')
@@ -273,7 +273,7 @@ class ModbusAsyncClientWrapper():
 			return ['PressureSerialNumberCommited', registers[0]]
 
 	async def transact_pressure_sensor(self):
-		# Read pressure and temperature from registers
+		# Read pressure and temperature from registers (Read input registers)
 		registers = await self.modbus_transaction(slave = 0xF0, function = 4, address = 0, count_val = 2)
 		
 		if (not registers):
@@ -281,31 +281,33 @@ class ModbusAsyncClientWrapper():
 			return ['PressureTransacted', 0]
 		else:
 			# Convert to meters by multipliyng on 0.16315456
+			# registers[0] is pressure
+			# registers[1] is temperature (not used for now)
 			return ['PressureTransacted', convert_uint(registers[0]) * 0.16315456]
 
 
 	async def start_compass_calibration(self):
-		# Write  CalStatus = 1 (to start calibration)
+		# Write  CalStatus = 1 (to start calibration)  (Write holding register)
 		registers = await self.modbus_transaction(slave = 0x0A, function = 6, address = 0, count_val = 1)
 		return ['CompassCalibrationStarted']
 		
 	async def stop_compass_calibration(self):				
-		# Write  CalStatus = 3 (to stop calibration)
+		# Write  CalStatus = 3 (to stop calibration) (Write holding register)
 		registers = await  self.modbus_transaction(slave = 0x0A, function = 6, address = 0, count_val = 3)
 		return ['CompassCalibrationStoped']
 
 	async def correct_compass_north(self):
-		# Write  CalStatus = 5 (current direction will be set as north)
+		# Write  CalStatus = 5 (current direction will be set as north) (Write holding register)
 		registers = await self.modbus_transaction(slave = 0x0A, function = 6, address = 0, count_val = 5)
 		return ['CompassNorthCorrected']
 		
 	async def save_compass_configuration(self):				
-		# Write  CalStatus = 6 (to save north configuration)
+		# Write  CalStatus = 6 (to save north configuration) (Write holding register)
 		registers = await self.modbus_transaction(slave = 0x0A, function = 6, address = 0, count_val = 6)
 		return ['CompassConfigurationSaved']
 
 	async def reset_compass(self):
-		# Write  CalStatus = 7 (to reset compass) 
+		# Write  CalStatus = 7 (to reset compass) (Write holding register)
 		registers = await self.modbus_transaction(slave = 0x0A, function = 6, address = 0, count_val = 7)
 		return ['CompassResetCommited']
 		
@@ -313,7 +315,7 @@ class ModbusAsyncClientWrapper():
 		# If CalStatus = 0 then it is usual working mode
 		# If CalStatus = 2 then the process of calibration is going on
 	
-		# Read CalStatus 
+		# Read CalStatus (Read holding register)
 		registers = await self.modbus_transaction(slave = 0x0A, function = 3, address = 0, count_val = 1)
 		# If some error
 		if (not registers):
@@ -323,7 +325,7 @@ class ModbusAsyncClientWrapper():
 			return ['CompassCalibrationStatusGot', registers[0]]
 		
 	async def read_temperature_from_compass_sensor(self):
-		# Read Tempr
+		# Read Tempr (Read holding register)
 		registers = await self.modbus_transaction(slave = 0x0A, function = 3, address = 1, count_val = 1)
 		
 		if (not registers):
@@ -334,7 +336,7 @@ class ModbusAsyncClientWrapper():
 			return ['CompassTemprTransacted', registers[0]/8]
 		
 	async def read_pitch_heading_from_compass_sensor(self):
-		#Read Pitch (GL_Teta) and Heading (GL_Phi)
+		#Read Pitch (GL_Teta) and Heading (GL_Phi)   (Read holding registers)
 		registers = await self.modbus_transaction(slave = 0x0A, function = 3, address = 2, count_val = 4)
 		
 		if (not registers):
